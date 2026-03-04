@@ -1,0 +1,51 @@
+# ---- Build artifacts ----
+build/
+bin/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# ---- Gradle ----
+.gradle/
+!gradle-wrapper.jar
+
+# ---- Kotlin ----
+.kotlin/
+.konan/
+kotlin-js-store/
+
+# ---- IDE ----
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# ---- Environment and secrets ----
+.env
+.env.*
+local.properties
+
+# ---- Logs ----
+*.log
+
+# ---- Node.js (Kotlin/JS, Compose Wasm tooling) ----
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Android (if KMP targets expand) ----
+*.apk
+*.aar
+*.keystore
+!debug.keystore
+captures/
+.externalNativeBuild/
+.cxx/
