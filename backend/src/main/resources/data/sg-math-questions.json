@@ -1,0 +1,162 @@
+[
+  {
+    "content": "Ali had 120 stickers. He gave 1/4 of them to Ben and 1/3 of the remainder to Cindy. How many stickers did Cindy receive?",
+    "metadata": {"grade": 4, "topic": "fractions.of_remainder", "difficulty": "medium", "source": "PSLE 2024 Practice"}
+  },
+  {
+    "content": "A fruit seller had 240 apples. He sold 3/8 of them on Monday. He sold 1/4 of the remainder on Tuesday. How many apples did he have left?",
+    "metadata": {"grade": 4, "topic": "fractions.of_remainder", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The ratio of boys to girls in a class is 3:5. If there are 24 boys, how many students are there altogether?",
+    "metadata": {"grade": 5, "topic": "ratio.basic", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The ratio of Tom's money to Jerry's money is 4:7. If Jerry has $35, how much money do they have altogether?",
+    "metadata": {"grade": 5, "topic": "ratio.basic", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The ratio of the number of red beads to blue beads is 2:5. If there are 30 more blue beads than red beads, how many beads are there in total?",
+    "metadata": {"grade": 5, "topic": "ratio.difference", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The average of 5 numbers is 36. When a 6th number is added, the average becomes 40. What is the 6th number?",
+    "metadata": {"grade": 5, "topic": "average.adding_number", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The average mass of 4 boys is 42 kg. The average mass of 6 girls is 38 kg. What is the average mass of all 10 children?",
+    "metadata": {"grade": 5, "topic": "average.combined_groups", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The average of 3 numbers is 25. Two of the numbers are 18 and 29. What is the third number?",
+    "metadata": {"grade": 5, "topic": "average.find_missing", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "If x + 7 = 15, find the value of x.",
+    "metadata": {"grade": 6, "topic": "algebra.simple_equation", "difficulty": "easy", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "Mary has x stickers. She buys 12 more stickers. She then gives away 5 stickers. Express the number of stickers she has now in terms of x.",
+    "metadata": {"grade": 6, "topic": "algebra.expression", "difficulty": "easy", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "The cost of 3 pens and 2 erasers is $9.50. Each eraser costs $0.80. What is the cost of each pen?",
+    "metadata": {"grade": 6, "topic": "algebra.substitution", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "Tom has x marbles. Jerry has 3 times as many marbles as Tom. Together, they have 48 marbles. Find the value of x.",
+    "metadata": {"grade": 6, "topic": "algebra.forming_equation", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "A shop sold 150 items in 3 days. It sold twice as many items on Day 2 as on Day 1. It sold 10 more items on Day 3 than on Day 2. How many items were sold on Day 1?",
+    "metadata": {"grade": 6, "topic": "algebra.forming_equation", "difficulty": "hard", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "Mr Tan gave 2/5 of his money to his wife and spent 1/3 of the remainder on a watch. If he had $240 left, how much money did he have at first?",
+    "metadata": {"grade": 5, "topic": "fractions.working_backwards", "difficulty": "hard", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The ratio of the number of stamps John had to the number Peter had was 5:3. After John gave 20 stamps to Peter, they had the same number of stamps. How many stamps did John have at first?",
+    "metadata": {"grade": 5, "topic": "ratio.before_after", "difficulty": "hard", "source": "PSLE Practice"}
+  },
+  {
+    "content": "A rectangle has a length of 12 cm and a breadth of 8 cm. Find the area and perimeter of the rectangle.",
+    "metadata": {"grade": 4, "topic": "measurement.area_perimeter", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "A tank is 3/4 filled with water. When 15 litres of water are added, the tank becomes completely full. What is the capacity of the tank?",
+    "metadata": {"grade": 4, "topic": "fractions.of_whole", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Express 3y + 2y - y + 4 in the simplest form.",
+    "metadata": {"grade": 6, "topic": "algebra.simplify_expression", "difficulty": "easy", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "The ratio of the number of fiction books to non-fiction books in a library is 7:4. There are 84 fiction books. How many non-fiction books are there?",
+    "metadata": {"grade": 5, "topic": "ratio.basic", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Amy, Ben, and Clara share $180 in the ratio 2:3:4. How much does each person get?",
+    "metadata": {"grade": 5, "topic": "ratio.sharing", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The average height of 8 students is 142 cm. When 2 more students join the group, the average height becomes 140 cm. What is the average height of the 2 new students?",
+    "metadata": {"grade": 5, "topic": "average.combined_groups", "difficulty": "hard", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Peter had 3 times as many cards as Paul. After Peter gave 26 cards to Paul, they each had an equal number of cards. How many cards did Peter have at first?",
+    "metadata": {"grade": 6, "topic": "algebra.forming_equation", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "A piece of wire 56 cm long is bent to form a square. What is the length of each side of the square? What is the area of the square?",
+    "metadata": {"grade": 4, "topic": "measurement.area_perimeter", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Mrs Lee bought 5 kg of rice at $2.30 per kg and 3 packets of sugar at $1.50 each. How much did she spend in total?",
+    "metadata": {"grade": 4, "topic": "decimals.money", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The ratio of Siti's age to Mei's age is 3:5. Siti is 6 years younger than Mei. Find Mei's age.",
+    "metadata": {"grade": 5, "topic": "ratio.difference", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "A piece of rope is 3/7 m long. Ahmad cuts off 1/4 of it. What is the length of the rope he cut off?",
+    "metadata": {"grade": 4, "topic": "fractions.multiplication", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "If 2x + 5 = 19, find the value of 3x - 2.",
+    "metadata": {"grade": 6, "topic": "algebra.multi_step_equation", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "The sum of three consecutive numbers is 96. Find the three numbers.",
+    "metadata": {"grade": 6, "topic": "algebra.consecutive_numbers", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "Ravi had some $2 notes and $5 notes. He had 15 notes altogether and the total value was $48. How many $2 notes did he have?",
+    "metadata": {"grade": 6, "topic": "algebra.simultaneous_concept", "difficulty": "hard", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "A farmer has chickens and cows. He counts 50 heads and 140 legs. How many chickens and how many cows does he have?",
+    "metadata": {"grade": 6, "topic": "algebra.simultaneous_concept", "difficulty": "hard", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "The ratio of water in Tank A to Tank B is 5:3. Tank A has 40 litres more water than Tank B. How much water is in each tank?",
+    "metadata": {"grade": 5, "topic": "ratio.difference", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "A baker made 360 muffins. He sold 5/8 of them in the morning and 1/3 of the remainder in the afternoon. How many muffins were left?",
+    "metadata": {"grade": 4, "topic": "fractions.of_remainder", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "There are 3 more girls than boys in a class. The ratio of boys to girls is 5:6. How many children are there in the class?",
+    "metadata": {"grade": 5, "topic": "ratio.difference", "difficulty": "hard", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The average score of a class of 30 students in a math test is 72. The average score of the boys is 68 and the average score of the girls is 78. How many boys are there in the class?",
+    "metadata": {"grade": 5, "topic": "average.combined_groups", "difficulty": "hard", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Find the value of 4a - 3b when a = 5 and b = 2.",
+    "metadata": {"grade": 6, "topic": "algebra.substitution", "difficulty": "easy", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "A square has a perimeter of 48 cm. Find the area of the square.",
+    "metadata": {"grade": 4, "topic": "measurement.area_perimeter", "difficulty": "easy", "source": "PSLE Practice"}
+  },
+  {
+    "content": "The total cost of 4 identical books and a $3 ruler is $27. What is the cost of one book?",
+    "metadata": {"grade": 6, "topic": "algebra.simple_equation", "difficulty": "easy", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "Jane is x years old. Her mother is 4 times as old as Jane. The sum of their ages is 60. Find Jane's age.",
+    "metadata": {"grade": 6, "topic": "algebra.forming_equation", "difficulty": "medium", "source": "PSLE 2026 Prep"}
+  },
+  {
+    "content": "The ratio of boys to girls at a concert is 3:7. There are 200 people at the concert. How many more girls than boys are there?",
+    "metadata": {"grade": 5, "topic": "ratio.total_known", "difficulty": "medium", "source": "PSLE Practice"}
+  },
+  {
+    "content": "Ali saved $5 every week. Bala saved $8 every week. After how many weeks would Bala have saved $36 more than Ali?",
+    "metadata": {"grade": 4, "topic": "whole_numbers.problem_solving", "difficulty": "medium", "source": "PSLE Practice"}
+  }
+]

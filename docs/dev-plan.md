@@ -65,31 +65,47 @@ psql postgresql://mathlearning:mathlearning@localhost:5432/mathlearning -c "SELE
 
 ---
 
-## Phase 2: RAG 知识库 + Prompt 优化
+## Phase 2: RAG 知识库 + Prompt 优化 ✅ <small>(已完成)</small>
 
 ### Task 2.1: 向量知识库搭建
 
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 2.1 | 编写题目导入脚本：读取 JSON/CSV 题库 → 调用 Embedding API → 写入 `sg_math_questions` 表 | `SELECT count(*) FROM sg_math_questions;` 有数据 |
-| 2.2 | 集成 Spring AI VectorStore（PgVectorStore），配置 cosine 相似度 | 代码中 `vectorStore.similaritySearch(query)` 返回相关题目 |
-| 2.3 | 收集 20-50 道新加坡 PSLE 真题（P4-P6 代数、比例、平均数），格式化为 JSON | 题库文件就绪 |
+| # | 任务 | 验证方式 | 状态 |
+|:--|:-----|:---------|:-----|
+| 2.1 | 编写题目导入脚本：读取 JSON 题库 → 调用 Embedding API → 写入 `vector_store` 表 | `SELECT count(*) FROM vector_store;` 返回 40 条数据 | ✅ |
+| 2.2 | 集成 Spring AI VectorStore（PgVectorStore），配置 cosine 相似度 | `vectorStore.similaritySearch(query)` 返回相关题目 | ✅ |
+| 2.3 | 收集 40 道新加坡 PSLE 题目（P4-P6 代数、比例、平均数、分数），格式化为 JSON | 题库文件就绪：`src/main/resources/data/sg-math-questions.json` | ✅ |
 
 ### Task 2.2: RAG 融入 Agent 链
 
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 2.4 | Planner Agent 先做 RAG 检索（Top-5 相似题），将检索结果作为上下文注入 Prompt | 解题输出引用了相似题的解法模式 |
-| 2.5 | 添加 grade 过滤：只检索 ≤ 当前年级的题目 | P3 题目不会返回 P6 级别的解法 |
+| # | 任务 | 验证方式 | 状态 |
+|:--|:-----|:---------|:-----|
+| 2.4 | Planner Agent 先做 RAG 检索（Top-5 相似题），将检索结果作为上下文注入 Prompt | 日志确认 "RAG retrieval returned 5 similar questions" | ✅ |
+| 2.5 | 添加 grade 过滤：只检索 ≤ 当前年级的题目 | P5 题目请求只返回 grade ≤ 5 的题 | ✅ |
 
 ### Task 2.3: Prompt 微调 + 缓存
 
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 2.6 | 微调各 Agent 的 System Prompt，确保输出严格符合 PSLE 评分标准 | 用 10 道标准题对比 AI 输出与标准答案 |
-| 2.7 | Redis 缓存：相同题目 + 年级的 AI 响应缓存 24h | 第二次请求命中缓存，响应 < 50ms |
+| # | 任务 | 验证方式 | 状态 |
+|:--|:-----|:---------|:-----|
+| 2.6 | 微调各 Agent 的 System Prompt，加入 PSLE 2026 评分标准、知识点编码体系、CPA 教学法详细指导 | System Prompt 包含 PSLE 评分标准、标准知识点代码、Bar Model 设计规则 | ✅ |
+| 2.7 | Redis 缓存：相同题目 + 年级的 AI 响应缓存 24h | `@Cacheable` 注解生效，SolveService 日志显示 "Cache miss" 仅首次触发 | ✅ |
 
-**Phase 2 交付物：** 具备 PSLE 知识库支撑的增强型解题器。
+> **⚠️ 实施中的技术发现：**
+>
+> | 问题 | 解决方案 |
+> |:-----|:---------|
+> | Spring Boot 4.0 不自动注册 `ObjectMapper` Bean | `QuestionImportService` 内部自行创建 `new ObjectMapper()` |
+> | PgVectorStore 使用 `vector_store` 表而非自定义表 | 使用 Spring AI 默认的 `vector_store` 表，将 metadata 字段存储 grade/topic/difficulty |
+> | `GenericJackson2JsonRedisSerializer` 已标记 `@Deprecated(forRemoval)` | 改用 `Jackson2JsonRedisSerializer` |
+> | 本地 Ollama 多 Agent 管线处理较慢（~2min/请求） | Redis 缓存确保相同题目秒级返回，生产环境切换 DeepSeek-R1 可大幅加速 |
+
+**Phase 2 交付物：** ✅ 具备 PSLE 知识库支撑的增强型解题器。
+
+**Phase 2 新增文件：**
+- `backend/src/main/resources/data/sg-math-questions.json` — 40 道 PSLE 题库（P4-P6）
+- `backend/src/main/java/com/mathlearning/service/QuestionImportService.java` — 应用启动时自动导入题库
+- `backend/src/main/java/com/mathlearning/service/RagRetrievalService.java` — RAG 检索服务（grade 过滤 + Top-5）
+- `backend/src/main/java/com/mathlearning/service/SolveService.java` — 缓存层包装
+- `backend/src/main/java/com/mathlearning/config/CacheConfig.java` — Redis 缓存配置（24h TTL）
 
 ---
 

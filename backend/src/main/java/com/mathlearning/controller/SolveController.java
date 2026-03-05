@@ -1,8 +1,8 @@
 package com.mathlearning.controller;
 
-import com.mathlearning.agent.MathSolverOrchestrator;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.model.SolveResult;
+import com.mathlearning.service.SolveService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,41 +13,47 @@ import reactor.core.publisher.Flux;
 
 /**
  * Solve endpoints providing both structured multi-agent pipeline and SSE streaming.
+ * The structured endpoint uses Redis caching (24h TTL).
  */
 @RestController
 @RequestMapping("/api/v1/solve")
 public class SolveController {
 
     private final ChatClient chatClient;
-    private final MathSolverOrchestrator orchestrator;
+    private final SolveService solveService;
 
     private static final String SOLVE_SYSTEM_PROMPT = """
-            You are an expert Singapore primary school math tutor following the 2026 MOE syllabus.
-            Use the CPA (Concrete-Pictorial-Abstract) teaching method.
+            You are an expert Singapore primary school math tutor following the 2026 MOE PSLE syllabus.
+            Use the CPA (Concrete-Pictorial-Abstract) teaching method strictly.
+
+            ## PSLE 2026 Scoring Standards
+            - Show complete working with one operation per step
+            - Use proper units in the final answer
+            - Reference the Bar Model (Model Method) for visual explanation
 
             For every question, provide:
-            1. Knowledge points tested (as tags)
+            1. Knowledge points tested (as PSLE topic codes)
             2. Step-by-step solution using age-appropriate language
             3. A Bar Model description for visual representation
-            4. A parent guide explaining how to teach the concept
+            4. A parent guide explaining how to teach the concept at home
             5. A fun child-friendly script explaining the answer
 
             Adapt your language complexity to match the student's grade level (P1-P6).
             Respond in a structured way with clear section headers.
             """;
 
-    public SolveController(ChatClient.Builder chatClientBuilder, MathSolverOrchestrator orchestrator) {
+    public SolveController(ChatClient.Builder chatClientBuilder, SolveService solveService) {
         this.chatClient = chatClientBuilder.build();
-        this.orchestrator = orchestrator;
+        this.solveService = solveService;
     }
 
     /**
-     * Runs the full multi-agent pipeline and returns a structured JSON result.
-     * Uses Planner → CPA Designer + Persona agents concurrently.
+     * Runs the full multi-agent pipeline with RAG and returns a structured JSON result.
+     * Results are cached by question+grade for 24 hours.
      */
     @PostMapping
     public SolveResult solve(@RequestBody SolveRequest request) {
-        return orchestrator.solve(request);
+        return solveService.solve(request);
     }
 
     /**
