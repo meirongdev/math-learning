@@ -1,6 +1,27 @@
 plugins {
     java
     id("org.springframework.boot") version "4.0.3"
+    id("com.diffplug.spotless") version "7.0.2"
+}
+
+spotless {
+    java {
+        target("src/**/*.java")
+        eclipse()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    sql {
+        target("src/main/resources/db/migration/*.sql", "../infra/**/*.sql")
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    format("docker") {
+        target("../infra/*.Dockerfile", "../infra/docker-compose.yml")
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 group = "com.mathlearning"

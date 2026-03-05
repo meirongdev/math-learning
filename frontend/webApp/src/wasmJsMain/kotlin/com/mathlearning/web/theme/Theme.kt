@@ -28,13 +28,13 @@ private val LightColors = lightColorScheme(
     onSurface = Color(0xFF1A1C1E),
     surfaceVariant = Color(0xFFE7E0EC),
     onSurfaceVariant = Color(0xFF49454F),
-    outline = Color(0xFF79747E)
+    outline = Color(0xFF79747E),
 )
 
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = LightColors,
-        content = content
+        content = content,
     )
 }

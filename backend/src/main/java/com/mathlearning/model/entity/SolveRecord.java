@@ -30,32 +30,32 @@ import java.util.UUID;
 @Builder
 public class SolveRecord {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id", nullable = false)
-    private StudentProfile student;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "student_id", nullable = false)
+	private StudentProfile student;
 
-    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
-    private String questionText;
+	@Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
+	private String questionText;
 
-    @Column(name = "parent_guide", columnDefinition = "TEXT")
-    private String parentGuide;
+	@Column(name = "parent_guide", columnDefinition = "TEXT")
+	private String parentGuide;
 
-    @Column(name = "child_script", columnDefinition = "TEXT")
-    private String childScript;
+	@Column(name = "child_script", columnDefinition = "TEXT")
+	private String childScript;
 
-    @Column(name = "bar_model_json", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
-    private String barModelJson;
+	@Column(name = "bar_model_json", columnDefinition = "jsonb")
+	@JdbcTypeCode(SqlTypes.JSON)
+	private String barModelJson;
 
-    @Column(name = "knowledge_tags", columnDefinition = "TEXT[]")
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    private List<String> knowledgeTags;
+	@Column(name = "knowledge_tags", columnDefinition = "TEXT[]")
+	@JdbcTypeCode(SqlTypes.ARRAY)
+	private List<String> knowledgeTags;
 
-    @Column(name = "created_at", updatable = false)
-    @Builder.Default
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+	@Column(name = "created_at", updatable = false)
+	@Builder.Default
+	private OffsetDateTime createdAt = OffsetDateTime.now();
 }

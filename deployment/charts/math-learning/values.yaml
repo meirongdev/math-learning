@@ -1,0 +1,56 @@
+# Backend
+backend:
+  image:
+    repository: ghcr.io/meirongdev/math-learning/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 1Gi
+  service:
+    port: 8080
+  # Spring Boot config — values injected as env vars
+  config:
+    springProfilesActive: prod
+    datasourceUrl: jdbc:postgresql://postgres:5432/mathlearning
+    datasourceUsername: mathlearning
+    redisHost: redis
+    redisPort: "6379"
+    ollamaBaseUrl: http://ollama:11434
+  # Reference to an existing Secret containing sensitive values.
+  # The Secret must have keys: datasource-password, jwt-secret
+  # Create with: kubectl create secret generic math-learning-secrets \
+  #   --from-literal=datasource-password=<pw> \
+  #   --from-literal=jwt-secret=<secret>
+  existingSecret: math-learning-secrets
+
+# Frontend (nginx serving Compose Wasm static files)
+frontend:
+  image:
+    repository: ghcr.io/meirongdev/math-learning/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    port: 80
+
+# Gateway API HTTPRoute — routes / to frontend, /api to backend
+# Assumes a Gateway already exists in the homelab (managed outside this chart)
+gateway:
+  enabled: true
+  # Name and namespace of the existing Gateway resource
+  name: traefik-gateway
+  namespace: kube-system
+  host: math.homelab.local

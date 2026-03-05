@@ -1,5 +1,8 @@
 server:
   port: 8080
+  servlet:
+    async:
+      timeout: 300000
 
 spring:
   application:

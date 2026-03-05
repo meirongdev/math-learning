@@ -22,7 +22,7 @@ spring:
     ollama:
       base-url: http://localhost:11434
       chat:
-        model: qwen3.5
+        model: qwen3.5:2b
       embedding:
         model: nomic-embed-text
     vectorstore:
@@ -30,3 +30,7 @@ spring:
         initialize-schema: true
         dimensions: 768
         index-type: hnsw
+
+logging:
+  level:
+    org.springframework.web.servlet.DispatcherServlet: DEBUG

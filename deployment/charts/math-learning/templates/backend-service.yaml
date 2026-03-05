@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "math-learning.fullname" . }}-backend
+  labels:
+    {{- include "math-learning.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "math-learning.backend.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.backend.service.port }}
+      targetPort: 8080
+      protocol: TCP

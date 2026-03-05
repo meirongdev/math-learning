@@ -10,5 +10,5 @@ import java.util.UUID;
 @Repository
 public interface SolveRecordRepository extends JpaRepository<SolveRecord, UUID> {
 
-    List<SolveRecord> findByStudentIdOrderByCreatedAtDesc(UUID studentId);
+	List<SolveRecord> findByStudentIdOrderByCreatedAtDesc(UUID studentId);
 }

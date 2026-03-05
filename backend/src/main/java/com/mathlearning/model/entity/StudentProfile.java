@@ -27,21 +27,21 @@ import java.util.UUID;
 @Builder
 public class StudentProfile {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id", nullable = false)
-    private User parent;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "parent_id", nullable = false)
+	private User parent;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+	@Column(nullable = false, length = 100)
+	private String name;
 
-    @Column(nullable = false)
-    private int grade;
+	@Column(nullable = false)
+	private int grade;
 
-    @Column(name = "created_at", updatable = false)
-    @Builder.Default
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+	@Column(name = "created_at", updatable = false)
+	@Builder.Default
+	private OffsetDateTime createdAt = OffsetDateTime.now();
 }
