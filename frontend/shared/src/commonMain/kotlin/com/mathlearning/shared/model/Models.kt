@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SolveRequest(
     val question: String,
-    val grade: String,
-    val studentId: String = ""
+    val grade: Int,
+    val studentId: String? = null
 )
 
 @Serializable

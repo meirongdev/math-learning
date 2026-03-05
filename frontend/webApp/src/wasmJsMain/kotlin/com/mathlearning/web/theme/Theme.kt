@@ -2,7 +2,6 @@ package com.mathlearning.web.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -15,12 +14,21 @@ private val LightColors = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFB2DFDB),
     onSecondaryContainer = Color(0xFF00201D),
+    tertiary = Color(0xFF7C5800),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFDEA6),
+    onTertiaryContainer = Color(0xFF271900),
+    error = Color(0xFFBA1A1A),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
     background = Color(0xFFF8FAFE),
     onBackground = Color(0xFF1A1C1E),
     surface = Color.White,
     onSurface = Color(0xFF1A1C1E),
     surfaceVariant = Color(0xFFE7E0EC),
-    onSurfaceVariant = Color(0xFF49454F)
+    onSurfaceVariant = Color(0xFF49454F),
+    outline = Color(0xFF79747E)
 )
 
 @Composable
