@@ -68,7 +68,7 @@ frontend-build: ## Build frontend (all modules)
 	cd $(FRONTEND_DIR) && ./gradlew build
 
 frontend-run: ## Run frontend dev server with hot-reload
-	cd $(FRONTEND_DIR) && ./gradlew :webApp:wasmJsBrowserRun -t
+	cd $(FRONTEND_DIR) && ./gradlew :webApp:wasmJsBrowserDevelopmentRun -t
 
 frontend-test: ## Run frontend shared module tests
 	cd $(FRONTEND_DIR) && ./gradlew :shared:wasmJsBrowserTest
@@ -141,7 +141,7 @@ logs: ## Tail backend and frontend logs (from dev-full)
 
 stop: ## Stop background services started by dev-full
 	@pkill -f "spring.profiles.active=dev" 2>/dev/null && echo "Backend stopped" || echo "Backend was not running"
-	@pkill -f "wasmJsBrowserRun" 2>/dev/null && echo "Frontend stopped" || echo "Frontend was not running"
+	@pkill -f "wasmJsBrowserDevelopmentRun" 2>/dev/null && echo "Frontend stopped" || echo "Frontend was not running"
 
 # ---- Composite ----
 
@@ -165,7 +165,7 @@ dev-full: infra-up ## Start infra + backend + frontend in background (logs → .
 	@echo "Starting backend..."
 	@cd $(BACKEND_DIR) && ./gradlew bootRun --args='--spring.profiles.active=dev' > ../.logs/backend.log 2>&1 &
 	@echo "Starting frontend..."
-	@cd $(FRONTEND_DIR) && ./gradlew :webApp:wasmJsBrowserRun > ../.logs/frontend.log 2>&1 &
+	@cd $(FRONTEND_DIR) && ./gradlew :webApp:wasmJsBrowserDevelopmentRun > ../.logs/frontend.log 2>&1 &
 	@echo ""
 	@echo "Services starting in background. Check URLs once logs show ready:"
 	@echo "  Backend:  http://localhost:8080"

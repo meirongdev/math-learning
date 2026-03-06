@@ -55,20 +55,25 @@ POST /api/v1/auth/login
 ```json
 {
   "token": "<jwt>",
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "parent@example.com",
   "expiresAt": "2026-03-07T10:00:00Z"
 }
 ```
 
-> Note: JWT is scaffolded but not currently enforced on solve endpoints. Will be required after Phase 5.
+> JWT is **enforced** on all endpoints except `/api/v1/auth/**` and `/actuator/**`. Include `Authorization: Bearer <jwt>` in all requests.
 
 ---
 
 ## Solve
 
+All solve endpoints require a valid JWT token.
+
 ### Solve (structured JSON)
 
 ```
 POST /api/v1/solve
+Authorization: Bearer <jwt>
 ```
 
 **Request**
@@ -76,7 +81,8 @@ POST /api/v1/solve
 ```json
 {
   "question": "Amy has 24 sweets. She gives 1/3 to Bob. How many does Amy have left?",
-  "grade": 3
+  "grade": 3,
+  "studentId": "optional-student-uuid"
 }
 ```
 
@@ -84,6 +90,7 @@ POST /api/v1/solve
 |-------|------|----------|-------------|
 | `question` | string | yes | Math problem text (max 500 chars) |
 | `grade` | integer | yes | Student grade: 1–6 |
+| `studentId` | string (UUID) | no | Student profile ID; if provided, the solve result is saved to `solve_records` and `knowledge_progress` is updated |
 
 **Response `200 OK`**
 
@@ -113,6 +120,7 @@ Results are **cached by question + grade** for 24 hours. First call ~16s, cached
 POST /api/v1/solve/stream
 Content-Type: application/json
 Accept: text/event-stream
+Authorization: Bearer <jwt>
 ```
 
 Same request body as `/api/v1/solve`. Response is a Server-Sent Events stream — each section arrives as a separate event once the full pipeline completes.
@@ -140,6 +148,132 @@ data: [DONE]
 ```
 
 > Implementation note: the current SSE endpoint computes the full result first, then emits it section by section. True token-level streaming requires a future refactor.
+
+---
+
+## Students
+
+All student endpoints require a valid JWT token. Students are scoped to the authenticated user (parent).
+
+### Create Student Profile
+
+```
+POST /api/v1/students
+Authorization: Bearer <jwt>
+```
+
+**Request**
+
+```json
+{
+  "name": "Alice",
+  "grade": 3
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Student name (non-blank) |
+| `grade` | integer | yes | Student grade: 1–6 |
+
+**Response `201 Created`**
+
+```json
+{
+  "studentId": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Alice",
+  "grade": 3,
+  "createdAt": "2026-03-06T10:00:00Z"
+}
+```
+
+---
+
+### List Students
+
+```
+GET /api/v1/students
+Authorization: Bearer <jwt>
+```
+
+**Response `200 OK`**
+
+```json
+[
+  {
+    "studentId": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Alice",
+    "grade": 3,
+    "createdAt": "2026-03-06T10:00:00Z"
+  }
+]
+```
+
+---
+
+## Solve Records
+
+### Get Solve History
+
+```
+GET /api/v1/records/{studentId}?page=0&size=20
+Authorization: Bearer <jwt>
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 0 | Page number (0-based) |
+| `size` | integer | 20 | Page size |
+
+**Response `200 OK`** — paginated `Page<RecordResponse>`
+
+```json
+{
+  "content": [
+    {
+      "id": "...",
+      "questionText": "Amy has 24 sweets...",
+      "parentGuide": "This covers P3 fractions...",
+      "childScript": "Let's share some sweets...",
+      "barModelJson": "{...}",
+      "knowledgeTags": ["basic_fractions"],
+      "createdAt": "2026-03-06T10:00:00Z"
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "number": 0,
+  "size": 20
+}
+```
+
+---
+
+## Knowledge Progress
+
+### Get Knowledge Progress
+
+```
+GET /api/v1/knowledge/{studentId}
+Authorization: Bearer <jwt>
+```
+
+**Response `200 OK`**
+
+```json
+[
+  {
+    "id": "...",
+    "knowledgeCode": "basic_fractions",
+    "masteryScore": 0.00,
+    "attemptCount": 3,
+    "correctCount": 0,
+    "updatedAt": "2026-03-06T10:00:00Z"
+  }
+]
+```
+
+Results are sorted by `attemptCount` descending (most practiced topics first).
 
 ---
 
@@ -191,9 +325,8 @@ Tags follow the format `topic` or `topic.subtopic`.
 
 ## Error Response Format
 
-> Will be standardised in Phase 4. Currently error responses vary by endpoint.
+All error responses use a consistent format via `@ControllerAdvice`:
 
-Target format:
 
 ```json
 {
@@ -204,9 +337,9 @@ Target format:
 
 | Code | HTTP Status | Meaning |
 |------|-------------|---------|
-| `INVALID_INPUT` | 400 | Validation failure |
+| `VALIDATION_ERROR` | 400 | Validation failure |
 | `UNAUTHORIZED` | 401 | Missing or invalid JWT |
 | `NOT_FOUND` | 404 | Resource not found |
-| `LLM_TIMEOUT` | 503 | LLM call exceeded timeout |
-| `LLM_PARSE_ERROR` | 503 | LLM returned invalid JSON |
+| `LLM_TIMEOUT` | 504 | LLM call exceeded timeout |
+| `LLM_PARSE_ERROR` | 500 | LLM returned invalid JSON |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |

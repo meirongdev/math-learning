@@ -1,5 +1,10 @@
 package com.mathlearning.agent;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mathlearning.exception.LlmResponseParseException;
+import com.mathlearning.exception.LlmTimeoutException;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.model.SolveResult;
 import com.mathlearning.service.RagRetrievalService;
@@ -8,10 +13,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Orchestrates the multi-agent math solving pipeline.
@@ -23,8 +32,7 @@ import java.util.List;
  * (grade-filtered)</li>
  * <li>Planner Agent - analyzes the question with RAG context, extracts
  * knowledge points</li>
- * <li>CPA Designer Agent + Persona Agent - run concurrently after the Planner
- * completes</li>
+ * <li>Content Agent - generates bar model, parent guide, and child script</li>
  * </ol>
  */
 @Service
@@ -32,8 +40,10 @@ public class MathSolverOrchestrator {
 
 	private static final Logger log = LoggerFactory.getLogger(MathSolverOrchestrator.class);
 
+	private final int llmTimeoutSeconds;
 	private final ChatClient chatClient;
 	private final RagRetrievalService ragRetrievalService;
+	private final ObjectMapper objectMapper;
 
 	private static final String PLANNER_SYSTEM_PROMPT = """
 			You are a Singapore primary math teacher (PSLE 2026 syllabus, CPA approach).
@@ -64,151 +74,124 @@ public class MathSolverOrchestrator {
 			{"barModel":{...},"parentGuide":"...","childScript":"..."}
 			""";
 
-	public MathSolverOrchestrator(ChatClient chatClient, RagRetrievalService ragRetrievalService) {
+	public MathSolverOrchestrator(ChatClient chatClient, RagRetrievalService ragRetrievalService,
+			ObjectMapper objectMapper, @Value("${app.llm.timeout-seconds:180}") int llmTimeoutSeconds) {
 		this.chatClient = chatClient;
 		this.ragRetrievalService = ragRetrievalService;
+		this.objectMapper = objectMapper;
+		this.llmTimeoutSeconds = llmTimeoutSeconds;
 	}
 
 	/**
 	 * Runs the full RAG-enhanced multi-agent pipeline.
-	 * <ol>
-	 * <li>RAG retrieval: search for similar PSLE questions (grade-filtered)</li>
-	 * <li>Planner Agent: analyze with RAG context</li>
-	 * <li>CPA Designer + Persona Agents: run concurrently</li>
-	 * </ol>
 	 */
 	public SolveResult solve(SolveRequest request) {
-		// Step 0: RAG retrieval - find similar questions from vector store
+		// Step 0: RAG retrieval
 		log.info("Starting RAG retrieval for grade {} question", request.grade());
 		List<Document> similarQuestions = ragRetrievalService.retrieveSimilarQuestions(request.question(),
 				request.grade());
 		String ragContext = ragRetrievalService.formatAsContext(similarQuestions);
 		log.info("RAG retrieval completed, found {} similar questions", similarQuestions.size());
 
-		// Step 1: Run Planner Agent with RAG context
+		// Step 1: Planner Agent
 		log.info("Starting Planner Agent for grade {} question", request.grade());
 		long plannerStart = System.currentTimeMillis();
-		String plannerResult = runPlannerAgent(request, ragContext);
+		String plannerResult = callLlm(PLANNER_SYSTEM_PROMPT, buildPlannerMessage(request, ragContext));
 		log.info("Planner Agent completed in {}ms", System.currentTimeMillis() - plannerStart);
 		log.debug("Planner raw response: {}", plannerResult);
 
-		// Step 2: Run Content Agent (bar model + parent guide + child script in one
-		// call)
+		// Step 2: Content Agent
 		log.info("Starting Content Agent for grade {} question", request.grade());
 		long contentStart = System.currentTimeMillis();
-		String contentResult = runContentAgent(plannerResult, request.grade());
+		String contentResult = callLlm(CONTENT_AGENT_SYSTEM_PROMPT,
+				"Grade: P%d\nSolution plan:\n%s".formatted(request.grade(), plannerResult));
 		log.info("Content Agent completed in {}ms", System.currentTimeMillis() - contentStart);
 		log.debug("Content raw response: {}", contentResult);
 
-		List<String> knowledgeTags = extractKnowledgeTags(plannerResult);
-		String parentGuide = extractJsonField(contentResult, "parentGuide");
-		String childScript = extractJsonField(contentResult, "childScript");
-		String barModelJson = extractNestedJson(contentResult, "barModel");
-
-		log.info("All agents completed successfully");
-		return new SolveResult(parentGuide, childScript, barModelJson, knowledgeTags);
+		return parseResults(plannerResult, contentResult);
 	}
 
-	private String callLlm(String systemPrompt, String userMessage) {
-		return chatClient.prompt().system(systemPrompt).user(userMessage)
-				.options(OllamaChatOptions.builder().disableThinking().build()).call().content();
-	}
-
-	private String runPlannerAgent(SolveRequest request, String ragContext) {
-		String userMessage = """
+	private String buildPlannerMessage(SolveRequest request, String ragContext) {
+		return """
 				Grade: P%d
 				Question: %s
 
 				%s
 				""".formatted(request.grade(), request.question(), ragContext);
-		return callLlm(PLANNER_SYSTEM_PROMPT, userMessage);
-	}
-
-	private String runContentAgent(String solutionPlan, int grade) {
-		String userMessage = "Grade: P%d\nSolution plan:\n%s".formatted(grade, solutionPlan);
-		return callLlm(CONTENT_AGENT_SYSTEM_PROMPT, userMessage);
 	}
 
 	/**
-	 * Extracts knowledge tags from the planner JSON response. This is a simple
-	 * extraction; a production system would use proper JSON parsing.
+	 * Calls the LLM synchronously with a 60-second timeout.
+	 *
+	 * @throws LlmTimeoutException
+	 *             if the LLM does not respond within the timeout
 	 */
-	private List<String> extractKnowledgeTags(String plannerResult) {
+	private String callLlm(String systemPrompt, String userMessage) {
+		var future = CompletableFuture.supplyAsync(() -> chatClient.prompt().system(systemPrompt).user(userMessage)
+				.options(OllamaChatOptions.builder().disableThinking().build()).call().content());
 		try {
-			int start = plannerResult.indexOf("\"knowledgeTags\"");
-			if (start == -1)
-				return List.of();
-			int arrayStart = plannerResult.indexOf('[', start);
-			int arrayEnd = plannerResult.indexOf(']', arrayStart);
-			if (arrayStart == -1 || arrayEnd == -1)
-				return List.of();
-			String arrayContent = plannerResult.substring(arrayStart + 1, arrayEnd);
-			return Arrays.stream(arrayContent.split(",")).map(s -> s.trim().replace("\"", "")).filter(s -> !s.isBlank())
-					.toList();
-		} catch (Exception e) {
-			log.warn("Failed to extract knowledge tags from planner result", e);
-			return List.of();
+			return future.get(llmTimeoutSeconds, TimeUnit.SECONDS);
+		} catch (TimeoutException e) {
+			future.cancel(true);
+			throw new LlmTimeoutException(
+					"LLM call timed out after " + llmTimeoutSeconds + "s. Please try again later.");
+		} catch (ExecutionException e) {
+			Throwable cause = e.getCause();
+			throw new RuntimeException("LLM call failed: " + cause.getMessage(), cause);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("LLM call interrupted", e);
 		}
 	}
 
 	/**
-	 * Extracts a nested JSON object value (e.g. "barModel": {...}) as a raw JSON
-	 * string.
+	 * Parses planner and content LLM responses using Jackson. Throws
+	 * {@link LlmResponseParseException} if either response is not valid JSON.
 	 */
-	private String extractNestedJson(String json, String fieldName) {
+	private SolveResult parseResults(String plannerResult, String contentResult) {
 		try {
-			String key = "\"" + fieldName + "\"";
-			int keyIndex = json.indexOf(key);
-			if (keyIndex == -1)
-				return "{}";
-			int colonIndex = json.indexOf(':', keyIndex);
-			int objStart = json.indexOf('{', colonIndex + 1);
-			if (objStart == -1)
-				return "{}";
-			int depth = 0;
-			int objEnd = objStart;
-			while (objEnd < json.length()) {
-				char c = json.charAt(objEnd);
-				if (c == '{')
-					depth++;
-				else if (c == '}') {
-					depth--;
-					if (depth == 0)
-						break;
-				}
-				objEnd++;
+			JsonNode plannerJson = parseJson(plannerResult);
+			JsonNode contentJson = parseJson(contentResult);
+
+			List<String> knowledgeTags = objectMapper.convertValue(plannerJson.path("knowledgeTags"),
+					new TypeReference<List<String>>() {
+					});
+			if (knowledgeTags == null) {
+				knowledgeTags = List.of();
 			}
-			return json.substring(objStart, objEnd + 1);
+
+			String parentGuide = contentJson.path("parentGuide").asText("");
+			String childScript = contentJson.path("childScript").asText("");
+			String barModelJson = contentJson.has("barModel")
+					? objectMapper.writeValueAsString(contentJson.get("barModel"))
+					: "{}";
+
+			log.info("All agents completed successfully");
+			return new SolveResult(parentGuide, childScript, barModelJson, knowledgeTags);
+		} catch (LlmResponseParseException e) {
+			throw e;
 		} catch (Exception e) {
-			log.warn("Failed to extract nested JSON field '{}'", fieldName, e);
-			return "{}";
+			throw new LlmResponseParseException("Failed to parse LLM response: " + e.getMessage(), e);
 		}
 	}
 
 	/**
-	 * Extracts a specific field value from a JSON string. This is a simple
-	 * extraction; a production system would use proper JSON parsing.
+	 * Extracts the JSON object from an LLM response string. Handles cases where the
+	 * model wraps JSON in markdown code blocks or adds extra text.
+	 *
+	 * @throws LlmResponseParseException
+	 *             if no valid JSON object is found
 	 */
-	private String extractJsonField(String json, String fieldName) {
+	private JsonNode parseJson(String text) {
+		int start = text.indexOf('{');
+		int end = text.lastIndexOf('}');
+		if (start == -1 || end == -1 || end < start) {
+			throw new LlmResponseParseException("No JSON object found in LLM response: " + text);
+		}
 		try {
-			String key = "\"" + fieldName + "\"";
-			int keyIndex = json.indexOf(key);
-			if (keyIndex == -1)
-				return "";
-			int colonIndex = json.indexOf(':', keyIndex);
-			int valueStart = json.indexOf('"', colonIndex + 1);
-			// Find the closing quote, handling escaped quotes
-			int valueEnd = valueStart + 1;
-			while (valueEnd < json.length()) {
-				if (json.charAt(valueEnd) == '"' && json.charAt(valueEnd - 1) != '\\') {
-					break;
-				}
-				valueEnd++;
-			}
-			return json.substring(valueStart + 1, valueEnd);
+			return objectMapper.readTree(text.substring(start, end + 1));
 		} catch (Exception e) {
-			log.warn("Failed to extract field '{}' from JSON", fieldName, e);
-			return "";
+			throw new LlmResponseParseException("Failed to parse LLM response JSON: " + e.getMessage(), e);
 		}
 	}
 }

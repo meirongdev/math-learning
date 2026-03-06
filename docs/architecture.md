@@ -66,6 +66,10 @@ graph TD
 ```
 Browser (Compose Wasm)
   │  POST /api/v1/solve/stream (SSE)
+  │  Authorization: Bearer <jwt>
+  ▼
+JwtAuthenticationFilter
+  │  Validates JWT, sets SecurityContext (userId)
   ▼
 SolveController
   │  SolveService.solve() — @Cacheable
@@ -76,7 +80,10 @@ MathSolverOrchestrator
   └── Content Agent → OllamaChatModel (ChatClient)
   │
   ▼
-SolveResult → SSE events (parent_guide, child_script, bar_model, knowledge_tags)
+SolveResult
+  ├── → SSE events (parent_guide, child_script, bar_model, knowledge_tags)
+  ├── → solve_records (if studentId provided)
+  └── → knowledge_progress (upsert attempt_count for each knowledgeTag)
 ```
 
 ---

@@ -2,6 +2,7 @@ package com.mathlearning.controller;
 
 import com.mathlearning.model.entity.User;
 import com.mathlearning.repository.UserRepository;
+import com.mathlearning.service.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,10 +19,12 @@ public class AuthController {
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final JwtService jwtService;
 
-	public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+	public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.jwtService = jwtService;
 	}
 
 	public record RegisterRequest(String email, String password) {
@@ -46,10 +49,12 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 		return userRepository.findByEmail(request.email())
-				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
-				.map(user -> ResponseEntity.ok(Map.of("token", "placeholder-jwt-token", // TODO: Generate real JWT
-						"userId", user.getId())))
-				.orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword())).map(user -> {
+					String token = jwtService.generateToken(user.getId());
+					return ResponseEntity
+							.ok(Map.of("token", token, "userId", user.getId(), "expiresAt",
+									jwtService.getExpiration(token).toString()));
+				}).orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
 						.body(Map.of("error", "Invalid email or password")));
 	}
 }

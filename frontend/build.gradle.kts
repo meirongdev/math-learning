@@ -1,8 +1,9 @@
 plugins {
-    kotlin("multiplatform") version "2.1.0" apply false
-    kotlin("plugin.serialization") version "2.1.0" apply false
-    id("org.jetbrains.compose") version "1.7.0" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0" apply false
+    kotlin("multiplatform") version "2.3.0" apply false
+    kotlin("plugin.serialization") version "2.3.0" apply false
+    id("org.jetbrains.compose") version "1.8.0" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0" apply false
+    id("org.jetbrains.kotlinx.kover") version "0.9.1" apply false
     id("com.diffplug.spotless") version "7.0.2"
 }
 

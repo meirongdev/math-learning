@@ -12,11 +12,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mathlearning.shared.api.MathApi
 import com.mathlearning.shared.model.SolveRequest
+import com.mathlearning.shared.model.Student
 import com.mathlearning.web.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -30,15 +32,155 @@ fun App() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            MathTutorScreen()
+            val api = remember { MathApi() }
+            var isLoggedIn by remember { mutableStateOf(false) }
+
+            if (isLoggedIn) {
+                MathTutorScreen(api) { isLoggedIn = false }
+            } else {
+                AuthScreen(api) { isLoggedIn = true }
+            }
+        }
+    }
+}
+
+@Composable
+fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var isLogin by remember { mutableStateOf(true) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "SG Math Tutor",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "AI-powered Singapore PSLE Math tutor",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            modifier = Modifier.widthIn(max = 400.dp).fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = if (isLogin) "Login" else "Register",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) return@Button
+                        isLoading = true
+                        errorMessage = null
+                        scope.launch {
+                            try {
+                                if (isLogin) {
+                                    api.login(email, password)
+                                    onLoginSuccess()
+                                } else {
+                                    val success = api.register(email, password)
+                                    if (success) {
+                                        api.login(email, password)
+                                        onLoginSuccess()
+                                    } else {
+                                        errorMessage = "Registration failed"
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                errorMessage = e.message ?: "An error occurred"
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    enabled = email.isNotBlank() && password.isNotBlank() && !isLoading,
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(if (isLogin) "Login" else "Register")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TextButton(
+                    onClick = {
+                        isLogin = !isLogin
+                        errorMessage = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        if (isLogin) "Don't have an account? Register" else "Already have an account? Login",
+                    )
+                }
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MathTutorScreen() {
-    val api = remember { MathApi() }
+fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     var question by remember { mutableStateOf("") }
@@ -47,6 +189,14 @@ fun MathTutorScreen() {
     var isLoading by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Student selection
+    var students by remember { mutableStateOf<List<Student>>(emptyList()) }
+    var selectedStudent by remember { mutableStateOf<Student?>(null) }
+    var studentExpanded by remember { mutableStateOf(false) }
+    var showAddStudent by remember { mutableStateOf(false) }
+    var newStudentName by remember { mutableStateOf("") }
+    var newStudentGrade by remember { mutableStateOf("P3") }
 
     // Result sections
     var parentGuide by remember { mutableStateOf("") }
@@ -57,6 +207,18 @@ fun MathTutorScreen() {
 
     val grades = listOf("P1", "P2", "P3", "P4", "P5", "P6")
 
+    // Load students on first composition
+    LaunchedEffect(Unit) {
+        try {
+            students = api.listStudents()
+            if (students.isNotEmpty()) {
+                selectedStudent = students.first()
+            }
+        } catch (_: Exception) {
+            // ignore – students list may fail if none exist
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,23 +228,123 @@ fun MathTutorScreen() {
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Header
-        Text(
-            text = "SG Math Tutor",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        // Header with logout
+        Row(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = "SG Math Tutor",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "AI-powered Singapore PSLE Math tutor using CPA method",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedButton(onClick = {
+                api.token = null
+                onLogout()
+            }) {
+                Text("Logout")
+            }
+        }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "AI-powered Singapore PSLE Math tutor using CPA method",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // Student selector card
+        Card(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Student",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    TextButton(onClick = { showAddStudent = !showAddStudent }) {
+                        Text(if (showAddStudent) "Cancel" else "+ Add Student")
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(24.dp))
+                if (showAddStudent) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newStudentName,
+                        onValueChange = { newStudentName = it },
+                        label = { Text("Student Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (newStudentName.isBlank()) return@Button
+                            scope.launch {
+                                try {
+                                    val gradeNum = newStudentGrade.removePrefix("P").toInt()
+                                    api.createStudent(newStudentName, gradeNum)
+                                    students = api.listStudents()
+                                    if (selectedStudent == null && students.isNotEmpty()) {
+                                        selectedStudent = students.first()
+                                    }
+                                    newStudentName = ""
+                                    showAddStudent = false
+                                } catch (e: Exception) {
+                                    errorMessage = "Failed to add student: ${e.message}"
+                                }
+                            }
+                        },
+                        enabled = newStudentName.isNotBlank(),
+                    ) {
+                        Text("Add")
+                    }
+                }
+
+                if (students.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ExposedDropdownMenuBox(
+                        expanded = studentExpanded,
+                        onExpandedChange = { studentExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            value = selectedStudent?.let { "${it.name} (P${it.grade})" } ?: "Select a student",
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = studentExpanded) },
+                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = studentExpanded,
+                            onDismissRequest = { studentExpanded = false },
+                        ) {
+                            students.forEach { student ->
+                                DropdownMenuItem(
+                                    text = { Text("${student.name} (P${student.grade})") },
+                                    onClick = {
+                                        selectedStudent = student
+                                        studentExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Input Card
         Card(
@@ -168,6 +430,7 @@ fun MathTutorScreen() {
                                 val request = SolveRequest(
                                     question = question,
                                     grade = selectedGrade.removePrefix("P").toInt(),
+                                    studentId = selectedStudent?.id,
                                 )
                                 val result = withTimeout(300_000L) {
                                     api.solve(request)

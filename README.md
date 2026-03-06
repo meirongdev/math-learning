@@ -80,8 +80,8 @@ math-learning/
 - [x] **Phase 1** — Core Agent chain (Planner + Content Agent) + Auth + SSE
 - [x] **Phase 2** — RAG knowledge base (pgvector) + Redis cache + Prompt tuning
 - [x] **Phase 3** — Web frontend (Compose Wasm)
-- [ ] **Phase 4** — Code quality: unified error handling, input validation, test baseline
-- [ ] **Phase 5** — Feature completeness: JWT enforcement, student profiles, solve history
+- [x] **Phase 4** — Code quality: unified error handling, input validation, test baseline
+- [x] **Phase 5** — Feature completeness: JWT enforcement, student profiles, solve history, knowledge tracking
 - [ ] **Phase 6** — Local performance: semantic cache, LLM retry
 - [ ] **Phase 7** — Advanced features: weakness analysis, recommendations, OCR (optional)
 - [ ] **Phase 8** — Production deployment: CI images, homelab k8s, observability

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.model.SolveResult;
 import com.mathlearning.service.SolveService;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,10 +25,11 @@ import java.util.Map;
 public class SolveController {
 
 	private final SolveService solveService;
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final ObjectMapper objectMapper;
 
-	public SolveController(SolveService solveService) {
+	public SolveController(SolveService solveService, ObjectMapper objectMapper) {
 		this.solveService = solveService;
+		this.objectMapper = objectMapper;
 	}
 
 	/**
@@ -35,7 +37,7 @@ public class SolveController {
 	 * result. Results are cached by question+grade for 24 hours.
 	 */
 	@PostMapping
-	public SolveResult solve(@RequestBody SolveRequest request) {
+	public SolveResult solve(@Valid @RequestBody SolveRequest request) {
 		return solveService.solve(request);
 	}
 
@@ -46,7 +48,7 @@ public class SolveController {
 	 * from Redis caching (24h TTL) via SolveService.
 	 */
 	@PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-	public Flux<String> solveStream(@RequestBody SolveRequest request) {
+	public Flux<String> solveStream(@Valid @RequestBody SolveRequest request) {
 		return Flux.defer(() -> {
 			try {
 				SolveResult result = solveService.solve(request);

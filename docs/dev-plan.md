@@ -54,7 +54,7 @@
 
 ---
 
-## Phase 4: 代码质量与健壮性
+## Phase 4: 代码质量与健壮性 ✅ <small>(已完成)</small>
 
 > **目标**：消除当前技术债，让本地应用稳定可靠。这是后续所有功能建设的基础。
 
@@ -84,11 +84,21 @@
 
 ---
 
-## Phase 5: 功能完整性
+## Phase 5: 功能完整性 ⚠️ <small>(基本完成，部分遗留)</small>
 
 > **目标**：补齐数据库已建表但尚未接通的功能，让应用形成完整闭环。
 >
-> 当前状态：`student_profiles`、`solve_records`、`knowledge_progress` 表已存在，但没有任何 API 端点写入或读取这些数据。Auth 的 JWT 已生成但未被任何端点校验。
+> **实施说明：**
+> - JWT 鉴权使用 JJWT 0.12.6 实现，`JwtAuthenticationFilter` + `HttpStatusEntryPoint(401)` 确保未认证请求返回 401
+> - `StudentController` 基于 `@AuthenticationPrincipal` 获取当前用户 ID
+> - `SolveService` 解题成功后自动写入 `solve_records` 并更新 `knowledge_progress`（upsert）
+> - 前端新增登录/注册页面、学生选择器，`MathApi.kt` 注入 Bearer Token
+> - 测试使用 Testcontainers 单例容器模式，避免跨测试类容器生命周期问题
+>
+> **遗留问题（移至 Phase 6）：**
+> - 前端刷新页面后需重新登录（Token 未持久化）
+> - 学生管理 UI 混在解题页，缺少年级选择器、编辑、删除功能
+> - 解题历史页、知识点掌握度页前端未实现
 
 ### Task 5.1: JWT 正式启用
 
@@ -129,93 +139,167 @@
 
 ---
 
-## Phase 6: 本地性能优化
+## Phase 6: UX 完善 + 知识图谱与掌握度评估
 
-> **目标**：在 Ollama 本地推理环境下把用户体验做到最好，缓存命中率 ≥ 60%。
+> **目标**：修复 Phase 5 遗留 UX 问题，建立完整的知识图谱体系与测评闭环。
+>
+> **参考文档：**
+> - [session-persistence.md](session-persistence.md) — Token 持久化方案
+> - [student-management-redesign.md](student-management-redesign.md) — 学生管理重设计
+> - [knowledge-graph-requirements.md](knowledge-graph-requirements.md) — 知识图谱与评估需求
 
-### Task 6.1: 语义缓存
-
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 6.1 | 语义缓存：解题前先用题目 embedding 在 vector_store 中查询相似历史解题结果（cosine ≥ 0.95），命中则直接返回 | 相似题目跳过 LLM 调用，日志显示 "Semantic cache hit" |
-| 6.2 | 常见题型预热：应用启动时批量解题并存入 Redis，覆盖 40 道题库中的典型题 | 预热后典型题响应 < 1s |
-
-### Task 6.2: 稳定性加固
+### Task 6.1: Session 持久化（Phase 5 遗留）
 
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 6.3 | LLM 调用重试机制（最多 2 次，指数退避 1s/2s），区分可重试错误（超时）与不可重试错误（400） | 单次超时后自动重试，最终仍失败才返回错误 |
-| 6.4 | PgVector HNSW 索引有效性验证：`EXPLAIN ANALYZE` 确认走索引，相似度检索 < 100ms | 查询计划显示 Index Scan |
+| 6.1 | `TokenStore` expect/actual：`wasmJsMain` 实现基于 `localStorage`，`jvmMain` no-op | 编译通过，无运行时错误 |
+| 6.2 | `MathApi.login()` 调用 `saveToken(token, expiresAt)` 持久化 Token | 登录后刷新页面不弹出登录框 |
+| 6.3 | `App()` 首次 composition 从 `localStorage` 恢复 Token，校验 `expiresAt` 未过期则免登录 | Token 有效期内刷新直接进入解题页 |
+| 6.4 | Ktor 客户端安装 401 拦截器，Token 过期时清除并跳回登录页 | 使用过期 Token 调用 API 后自动退出 |
+| 6.5 | 退出登录时调用 `clearToken()` 清除 `localStorage` | 退出后刷新跳回登录页 |
 
-**Phase 6 交付物：** 本地响应快，常见题秒级返回，偶发 LLM 错误自动重试。
+### Task 6.2: 学生管理重设计（Phase 5 遗留）
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 6.6 | 后端 `DELETE /api/v1/students/{id}`，需校验归属，级联软删除关联记录 | 204 删除成功；非归属学生返回 404 |
+| 6.7 | 前端提取 `StudentManagementDialog` 组件（列表 + 年级选择器 + 删除按钮） | 新增学生可选 P1–P6，删除后列表刷新 |
+| 6.8 | 移除主页面内嵌 Add Student 表单，改为"Manage"按钮入口 | 主页面学生卡片简洁，管理入口明确 |
+| 6.9 | 对话框内联错误提示，不污染主页面全局错误状态 | 添加/删除失败仅在 Dialog 内显示错误 |
+
+### Task 6.3: 知识图谱数据模型
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 6.10 | Flyway 迁移：新增 `knowledge_nodes` 表（code、name_en、name_zh、parent_code、grade_start） | 表结构创建成功 |
+| 6.11 | 种子数据：P1–P6 全覆盖知识点树（≥ 60 个叶节点），以 Flyway 迁移脚本录入 | `SELECT COUNT(*) FROM knowledge_nodes` ≥ 60 |
+| 6.12 | `knowledge_progress` 新增 `mastery_level` 列（`UNKNOWN`/`FAMILIAR`/`MASTERED`，默认 `UNKNOWN`） | 迁移成功，旧数据默认填充 `UNKNOWN` |
+| 6.13 | `GET /api/v1/knowledge/graph` — 返回完整知识图谱树（公开端点） | 返回嵌套 JSON 树结构 |
+| 6.14 | `GET /api/v1/knowledge/{studentId}/progress` — 返回学生各知识点掌握度 | 返回知识点列表附 mastery_level |
+| 6.15 | `PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}` — 家长手动更新掌握度 | 更新后 GET 接口返回新值 |
+
+### Task 6.4: 题库与测评
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 6.16 | Flyway 迁移：新增 `assessment_questions` + `assessment_question_tags` 表 | 表结构创建成功 |
+| 6.17 | 种子数据：≥ 60 道按知识点标注的测评题（P1–P6，覆盖主要叶节点） | 每个年级 ≥ 8 道 |
+| 6.18 | `GET /api/v1/questions?tag={code}&grade={n}&limit={n}` — 按知识点随机抽题 | 返回指定数量题目，题目属于目标知识点 |
+
+### Task 6.5: 解题历史星级评分
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 6.19 | `solve_records` 新增 `rating` 列（1–5，可为空） | 迁移成功 |
+| 6.20 | `PATCH /api/v1/records/{recordId}/rating` — 保存家长星级评分 | 评分写入 DB，历史列表返回 rating 字段 |
+| 6.21 | 评分后系统建议掌握度（4–5星→掌握，2–3星→了解，1星→未知），家长可接受或覆盖 | 接受建议后 `knowledge_progress.mastery_level` 更新 |
+
+### Task 6.6: 前端新页面
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 6.22 | 知识图谱页：树形列表，掌握度徽章（未知灰/了解黄/掌握绿），支持手动修改掌握度 | 修改后徽章颜色实时更新 |
+| 6.23 | 解题历史页：按学生筛选，显示题目摘要 + 知识点标签 + 星级 + 时间 | 列表按时间倒序，星级显示正确 |
+| 6.24 | 解题结果页底部新增星级评分组件，提交后显示确认 | 评分成功写入，刷新历史页可见 |
+| 6.25 | 主导航：解题 / 知识图谱 / 历史记录 三个入口 | 页面间切换流畅，无需刷新 |
+
+**Phase 6 交付物：** 登录态持久化、学生管理规范化、完整知识图谱与掌握度追踪、题库测评、历史星级评分。
 
 ---
 
-## Phase 7: 高阶功能（按需）
+## Phase 7: 本地性能优化
+
+> **目标**：在 Ollama 本地推理环境下把用户体验做到最好，缓存命中率 ≥ 60%。
+>
+> *(原 Phase 6)*
+
+### Task 7.1: 语义缓存
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 7.1 | 语义缓存：解题前先用题目 embedding 在 vector_store 中查询相似历史解题结果（cosine ≥ 0.95），命中则直接返回 | 相似题目跳过 LLM 调用，日志显示 "Semantic cache hit" |
+| 7.2 | 常见题型预热：应用启动时批量解题并存入 Redis，覆盖 40 道题库中的典型题 | 预热后典型题响应 < 1s |
+
+### Task 7.2: 稳定性加固
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 7.3 | LLM 调用重试机制（最多 2 次，指数退避 1s/2s），区分可重试错误（超时）与不可重试错误（400） | 单次超时后自动重试，最终仍失败才返回错误 |
+| 7.4 | PgVector HNSW 索引有效性验证：`EXPLAIN ANALYZE` 确认走索引，相似度检索 < 100ms | 查询计划显示 Index Scan |
+
+**Phase 7 交付物：** 本地响应快，常见题秒级返回，偶发 LLM 错误自动重试。
+
+---
+
+## Phase 8: 高阶功能（按需）
 
 > **目标**：从解题工具进化为自适应学习平台，按实际使用反馈决定优先级。
+>
+> *(原 Phase 7)*
 
-### Task 7.1: 薄弱点分析与推荐
-
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 7.1 | 薄弱点分析：基于 `knowledge_progress` 统计正确率，识别需强化知识点 | `GET /api/v1/knowledge/{studentId}/weaknesses` 返回排序列表 |
-| 7.2 | 个性化推荐：基于薄弱点 + RAG 检索推荐下一道题 | 推荐结果偏向薄弱知识点 |
-
-### Task 7.2: 知识图谱
+### Task 8.1: 薄弱点分析与推荐
 
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 7.3 | 知识点前置关系建模（如 `ratio.basic` 依赖 `whole_numbers`） | 知识图谱数据结构设计完成并录入 |
-| 7.4 | 自适应学习路径：根据掌握情况规划下一步目标 | 路径推荐 API 返回有序知识点序列 |
+| 8.1 | 薄弱点分析：基于 `knowledge_progress` 和星级评分，识别需强化知识点 | `GET /api/v1/knowledge/{studentId}/weaknesses` 返回排序列表 |
+| 8.2 | 个性化推荐：基于薄弱知识点从题库 + RAG 推荐下一道题 | 推荐结果偏向薄弱知识点 |
 
-### Task 7.3: 多模态输入（可选）
+### Task 8.2: 自适应学习路径
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 8.3 | 知识点前置关系建模（如 `ratio.basic` 依赖 `whole_numbers`），录入 `knowledge_nodes.prerequisites` | 前置关系数据完整 |
+| 8.4 | 自适应学习路径：根据掌握情况规划下一步目标 | 路径推荐 API 返回有序知识点序列 |
+
+### Task 8.3: 多模态输入（可选）
 
 | # | 任务 | 说明 |
 |:--|:-----|:-----|
-| 7.5 | OCR 图片题目识别 | 调用多模态 LLM（如 Qwen-VL）或集成 Tesseract |
-| 7.6 | 手写数学公式识别 | 依赖 OCR 基础能力 |
+| 8.5 | OCR 图片题目识别 | 调用多模态 LLM（如 Qwen-VL）或集成 Tesseract |
+| 8.6 | 手写数学公式识别 | 依赖 OCR 基础能力 |
 
-**Phase 7 交付物：** 具备个性化推荐和学习路径规划的完整学习平台。
+**Phase 8 交付物：** 具备个性化推荐和学习路径规划的完整学习平台。
 
 ---
 
-## Phase 8: 生产部署（本地开发完成后）
+## Phase 9: 生产部署（本地开发完成后）
 
-> **前提**：Phase 4–6 全部完成，本地应用功能完整、质量达标后再进行。
+> **前提**：Phase 6–7 全部完成，本地应用功能完整、质量达标后再进行。
 >
 > **部署目标**：homelab k8s 集群，所有基础设施（PostgreSQL、Redis、Ollama）由 homelab 自行提供。
+>
+> *(原 Phase 8)*
 
-### Task 8.1: 质量验收
-
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 8.1 | 准备 20 道 PSLE 标准题验收集，端到端验证 AI 输出质量 | 正确率 ≥ 90%，格式合规 |
-| 8.2 | 单元测试覆盖率提升至 80%+（重点：Agent 链、缓存、RAG） | `./gradlew jacocoTestReport` 达标 |
-
-### Task 8.2: CI 镜像构建
+### Task 9.1: 质量验收
 
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 8.3 | CI `publish` job：main 分支 push 后自动构建后端镜像并推送至 `ghcr.io/<owner>/math-learning/backend` | GitHub Actions 绿色，镜像可见（`sha-<hash>` + `latest`） |
-| 8.4 | CI 同步构建前端镜像（nginx + Wasm）并推送至 `ghcr.io/<owner>/math-learning/frontend` | 同上 |
+| 9.1 | 准备 20 道 PSLE 标准题验收集，端到端验证 AI 输出质量 | 正确率 ≥ 90%，格式合规 |
+| 9.2 | 单元测试覆盖率提升至 80%+（重点：Agent 链、缓存、RAG） | `./gradlew jacocoTestReport` 达标 |
 
-### Task 8.3: Homelab k8s 部署
-
-| # | 任务 | 验证方式 |
-|:--|:-----|:---------|
-| 8.5 | 创建 k8s Secret：datasource-password、jwt-secret | `kubectl get secret math-learning-secrets` 存在 |
-| 8.6 | ArgoCD Application 指向 `deployment/charts/math-learning/`，配置 `ollamaBaseUrl`、`datasourceUrl` 等 values | ArgoCD 状态 Synced + Healthy |
-| 8.7 | `kubectl get pods` backend + frontend 均 Running；访问 `math.homelab.local` 完整可用 | 浏览器端到端走通 |
-
-### Task 8.4: 可观测性
+### Task 9.2: CI 镜像构建
 
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 8.8 | 集成 Micrometer + Prometheus，暴露 `/actuator/prometheus` | homelab Prometheus 成功抓取 |
-| 8.9 | LLM 调用耗时、缓存命中率、错误率写入 Prometheus，配置 Grafana dashboard | Grafana 可查看实时指标 |
+| 9.3 | CI `publish` job：main 分支 push 后自动构建后端镜像并推送至 `ghcr.io/<owner>/math-learning/backend` | GitHub Actions 绿色，镜像可见（`sha-<hash>` + `latest`） |
+| 9.4 | CI 同步构建前端镜像（nginx + Wasm）并推送至 `ghcr.io/<owner>/math-learning/frontend` | 同上 |
 
-**Phase 8 交付物：** 运行在 homelab k8s 上的完整应用，前后端内网可访问，监控就绪。
+### Task 9.3: Homelab k8s 部署
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 9.5 | 创建 k8s Secret：datasource-password、jwt-secret | `kubectl get secret math-learning-secrets` 存在 |
+| 9.6 | ArgoCD Application 指向 `deployment/charts/math-learning/`，配置 `ollamaBaseUrl`、`datasourceUrl` 等 values | ArgoCD 状态 Synced + Healthy |
+| 9.7 | `kubectl get pods` backend + frontend 均 Running；访问 `math.homelab.local` 完整可用 | 浏览器端到端走通 |
+
+### Task 9.4: 可观测性
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 9.8 | 集成 Micrometer + Prometheus，暴露 `/actuator/prometheus` | homelab Prometheus 成功抓取 |
+| 9.9 | LLM 调用耗时、缓存命中率、错误率写入 Prometheus，配置 Grafana dashboard | Grafana 可查看实时指标 |
+
+**Phase 9 交付物：** 运行在 homelab k8s 上的完整应用，前后端内网可访问，监控就绪。
 
 ---
 
@@ -223,8 +307,7 @@
 
 | 优先级 | 任务 |
 |:-------|:-----|
-| **立即（Phase 4）** | 统一 ObjectMapper、全局异常处理、LLM 响应 JSON 解析、输入验证、测试骨架 |
-| **接下来（Phase 5）** | JWT 正式启用、学生档案 API、解题记录持久化、知识点掌握度追踪、前端登录页 |
-| **之后（Phase 6）** | 语义缓存、LLM 重试、pgvector 性能验证 |
-| **按需（Phase 7）** | 薄弱点推荐、知识图谱、OCR |
-| **最后（Phase 8）** | CI 镜像、k8s 部署、可观测性 |
+| **立即（Phase 6）** | Session 持久化、学生管理重设计、知识图谱、题库测评、历史星级评分 |
+| **接下来（Phase 7）** | 语义缓存、LLM 重试、pgvector 性能验证 |
+| **按需（Phase 8）** | 薄弱点推荐、自适应学习路径、OCR |
+| **最后（Phase 9）** | CI 镜像、k8s 部署、可观测性 |

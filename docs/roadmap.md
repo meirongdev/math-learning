@@ -9,11 +9,12 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 | [Phase 1](#phase-1--core-agent-chain) | Core Agent chain + Auth + SSE | Done |
 | [Phase 2](#phase-2--rag--caching) | RAG knowledge base + Redis cache + Prompt tuning | Done |
 | [Phase 3](#phase-3--web-frontend) | Web frontend (Compose Wasm) | Done |
-| [Phase 4](#phase-4--code-quality) | Code quality & robustness | Next |
-| [Phase 5](#phase-5--feature-completeness) | Feature completeness (auth enforcement, student profiles, history) | Planned |
-| [Phase 6](#phase-6--local-performance) | Local performance optimisation | Planned |
-| [Phase 7](#phase-7--advanced-features) | Advanced features (weakness analysis, OCR) | Optional |
-| [Phase 8](#phase-8--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
+| [Phase 4](#phase-4--code-quality) | Code quality & robustness | Done |
+| [Phase 5](#phase-5--feature-completeness) | Feature completeness (auth enforcement, student profiles, history) | Mostly done (UX issues remain) |
+| [Phase 6](#phase-6--ux--knowledge-graph) | UX fixes + Knowledge graph + Assessment + Star rating | Next |
+| [Phase 7](#phase-7--local-performance) | Local performance optimisation | Upcoming |
+| [Phase 8](#phase-8--advanced-features) | Advanced features (weakness analysis, adaptive path, OCR) | Optional |
+| [Phase 9](#phase-9--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
 
 ---
 
@@ -25,52 +26,44 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 
 **Phase 3** — Compose for Web (Wasm) SPA: solve form, four-section result display, SSE stream handling, responsive layout.
 
+**Phase 4** — Unified `ObjectMapper` bean, global `@ControllerAdvice` exception handler (`ErrorResponse{code, message}`), LLM response Jackson parsing, Bean Validation (question ≤ 500 chars, grade 1–6), LLM timeout + friendly error, Testcontainers integration test skeleton (47 tests).
+
+**Phase 5** — JWT enforcement via JJWT 0.12.6 (`JwtAuthenticationFilter` + `HttpStatusEntryPoint(401)`), student profile CRUD (`POST/GET /api/v1/students`), solve record persistence, knowledge progress tracking (upsert on solve), solve history API (`GET /api/v1/records/{studentId}`), knowledge progress API (`GET /api/v1/knowledge/{studentId}`), frontend login/register + student selector. UX issues (token persistence, student management) remain and are carried into Phase 6.
+
 ---
 
 ## Upcoming
 
-### Phase 4 — Code Quality
+### Phase 6 — UX Fixes + Knowledge Graph + Assessment
 
-Priority: address tech debt before adding more features.
+See [knowledge-graph-requirements.md](knowledge-graph-requirements.md), [session-persistence.md](session-persistence.md), [student-management-redesign.md](student-management-redesign.md).
 
-- Unified `ObjectMapper` bean (replace `new ObjectMapper()` instances)
-- Global `@ControllerAdvice` exception handler (`ErrorResponse{code, message}`)
-- LLM response parsing migrated from hand-written string extraction to Jackson
-- Input validation: question length ≤ 500 chars, grade 1–6 (Bean Validation)
-- LLM call timeout + friendly error on failure
-- Integration test skeleton (Testcontainers + PostgreSQL)
+- **Session persistence**: store JWT in `localStorage`; restore session on page refresh without re-login
+- **Student management redesign**: `StudentManagementDialog` with grade picker, delete, inline errors; `DELETE /api/v1/students/{id}`
+- **Knowledge graph**: `knowledge_nodes` table (P1–P6 tree, ≥ 60 nodes), mastery level (Unknown / Familiar / Mastered), manual parent marking
+- **Assessment question bank**: ≥ 60 tagged questions, `GET /api/v1/questions?tag=&grade=` random draw
+- **Star rating**: `solve_records.rating` (1–5), `PATCH /api/v1/records/{id}/rating`, mastery suggestion on rating
+- **Frontend pages**: knowledge graph view, solve history page, main navigation (Solve / Knowledge / History)
 
-### Phase 5 — Feature Completeness
-
-Goal: all DB tables that exist are actually used; app forms a real product loop.
-
-- JWT enforcement on protected endpoints (currently scaffolded but not applied)
-- Student profile CRUD: `POST/GET /api/v1/students`
-- Solve record persistence: write to `solve_records` on every solve
-- Knowledge progress tracking: upsert `knowledge_progress` from `knowledgeTags`
-- Solve history API: `GET /api/v1/records/{studentId}`
-- Knowledge progress API: `GET /api/v1/knowledge/{studentId}`
-- Frontend: login/register page + student selector on solve form
-
-### Phase 6 — Local Performance
+### Phase 7 — Local Performance
 
 - Semantic cache: skip LLM call if a prior answer has cosine similarity ≥ 0.95
 - Common questions pre-warm on startup
 - LLM retry (max 2, exponential backoff 1s/2s) for transient errors
 - pgvector HNSW query plan verification (`EXPLAIN ANALYZE`)
 
-### Phase 7 — Advanced Features (Optional)
+### Phase 8 — Advanced Features (Optional)
 
 Priorities to be decided based on actual usage.
 
 - Weakness analysis: `GET /api/v1/knowledge/{studentId}/weaknesses`
-- Personalised question recommendation (weakness + RAG)
-- Knowledge dependency graph (prerequisite topics)
+- Personalised question recommendation (weakness + RAG + question bank)
+- Adaptive learning path (prerequisite-aware knowledge ordering)
 - OCR image input (Qwen-VL or Tesseract)
 
 ---
 
-## Phase 8 — Production Deployment
+## Phase 9 — Production Deployment
 
 Intentionally deferred until the local application is functionally complete and quality is high.
 

@@ -79,9 +79,15 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
      -H "Content-Type: application/json" \
      -d '{"email":"parent@example.com","password":"Test1234!"}'
 
-# Solve a problem
+# Login and capture the JWT token
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"parent@example.com","password":"Test1234!"}' | jq -r .token)
+
+# Solve a problem (requires JWT)
 curl -X POST http://localhost:8080/api/v1/solve \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $TOKEN" \
      -d '{"question":"Amy has 24 sweets. She gives 1/3 to Bob. How many does Amy have left?","grade":3}'
 ```
 

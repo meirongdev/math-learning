@@ -24,10 +24,8 @@ import java.time.Duration;
 public class CacheConfig {
 
 	@Bean
-	public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-		// Construct ObjectMapper directly — SolveResult is a plain record with String /
-		// List<String> fields, so the default mapper handles it without extra modules.
-		var serializer = new Jackson2JsonRedisSerializer<>(new ObjectMapper(), SolveResult.class);
+	public CacheManager cacheManager(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
+		var serializer = new Jackson2JsonRedisSerializer<>(objectMapper, SolveResult.class);
 
 		RedisCacheConfiguration solveResultsConfig = RedisCacheConfiguration.defaultCacheConfig()
 				.entryTtl(Duration.ofHours(24))

@@ -27,11 +27,12 @@ public class QuestionImportService {
 
 	private final VectorStore vectorStore;
 	private final JdbcTemplate jdbcTemplate;
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final ObjectMapper objectMapper;
 
-	public QuestionImportService(VectorStore vectorStore, JdbcTemplate jdbcTemplate) {
+	public QuestionImportService(VectorStore vectorStore, JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
 		this.vectorStore = vectorStore;
 		this.jdbcTemplate = jdbcTemplate;
+		this.objectMapper = objectMapper;
 	}
 
 	@EventListener(ApplicationReadyEvent.class)
