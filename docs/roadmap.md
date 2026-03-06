@@ -12,9 +12,11 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 | [Phase 4](#phase-4--code-quality) | Code quality & robustness | Done |
 | [Phase 5](#phase-5--feature-completeness) | Feature completeness (auth enforcement, student profiles, history) | Done |
 | [Phase 6](#phase-6--ux--knowledge-graph) | UX fixes + Knowledge graph + Assessment + Star rating | Done |
-| [Phase 7](#phase-7--local-performance) | Local performance optimisation | Next |
-| [Phase 8](#phase-8--advanced-features) | Advanced features (weakness analysis, adaptive path, OCR) | Optional |
-| [Phase 9](#phase-9--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
+| [Phase 7](#phase-7--local-performance) | Local performance optimisation | Done |
+| [Phase 8](#phase-8--socratic-mode) | Socratic explanation mode + core capability expansion | Done |
+| [Phase 9](#phase-9--interactive-enhancements) | Interactive enhancements & parent productivity tools | Planned |
+| [Phase 10](#phase-10--gamification) | Gamification & adaptive learning | Planned |
+| [Phase 11](#phase-11--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
 
 ---
 
@@ -32,29 +34,30 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 
 **Phase 6** — Session persistence (JWT in `localStorage`, auto-restore on refresh, 401 interceptor). Student management redesign (`StudentManagementDialog` with grade picker + delete, `DELETE /api/v1/students/{id}`). Knowledge graph (`knowledge_nodes` table with 63 nodes P1–P6, mastery levels UNKNOWN/FAMILIAR/MASTERED, `GET /api/v1/knowledge/graph` public tree endpoint, `GET /api/v1/knowledge/{studentId}/progress`, `PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}`). Assessment question bank (68 tagged questions, `GET /api/v1/questions?tag=&grade=&limit=`). Star rating (`solve_records.rating` 1–5, `PATCH /api/v1/records/{recordId}/rating` with auto mastery suggestion). Frontend: three-tab navigation (Solve / Knowledge / History), knowledge graph tree view with mastery badges, solve history page with expandable records and inline rating.
 
+**Phase 7** — Multi-layer caching (L1 Redis exact match → L2 semantic cache via pgvector cosine similarity ≥ 0.98 + Caffeine in-memory → L3 full LLM pipeline). Startup cache warmup (top 20 recent solve records pre-loaded). Resilience4j retry (3 attempts, exponential backoff) + circuit breaker (50% threshold, 60s recovery). LLM parse failure fallback (returns plain-text result instead of error). Ollama keep-alive 30m.
+
+---
+
+**Phase 8** — `ExplanationMode` enum (ORIGINAL / SOCRATIC) added to solve request. Socratic Agent system prompt generates 2–4 heuristic guiding questions instead of direct answers. Mode routing in `MathSolverOrchestrator` selects Content Agent or Socratic Agent based on mode. Frontend Filter Chips for mode selection on solve screen. Cache key includes mode for separate caching per explanation style.
+
 ---
 
 ## Upcoming
 
-### Phase 7 — Local Performance
+### Phase 9 — Interactive Enhancements & Parent Productivity
 
-- Semantic cache: skip LLM call if a prior answer has cosine similarity ≥ 0.95
-- Common questions pre-warm on startup
-- LLM retry (max 2, exponential backoff 1s/2s) for transient errors
-- pgvector HNSW query plan verification (`EXPLAIN ANALYZE`)
+- Interactive Bar Models (drag/drop/resize)
+- Error notebook (`GET /api/v1/records/mistakes`, rating ≤ 2)
+- PDF export of parent guide + child script
+- Weekly learning report with AI summary
 
-### Phase 8 — Advanced Features (Optional)
+### Phase 10 — Gamification & Adaptive Learning
 
-Priorities to be decided based on actual usage.
+- Achievement badges and skill tree visualisation
+- Prerequisite-aware adaptive learning path
+- Automatic question recommendation based on weaknesses
 
-- Weakness analysis: `GET /api/v1/knowledge/{studentId}/weaknesses`
-- Personalised question recommendation (weakness + RAG + question bank)
-- Adaptive learning path (prerequisite-aware knowledge ordering)
-- OCR image input (Qwen-VL or Tesseract)
-
----
-
-## Phase 9 — Production Deployment
+### Phase 11 — Production Deployment
 
 Intentionally deferred until the local application is functionally complete and quality is high.
 

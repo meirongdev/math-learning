@@ -12,14 +12,17 @@ kotlin {
 
     sourceSets {
         val wasmJsMain by getting {
+            languageSettings {
+                optIn("kotlin.time.ExperimentalTime")
+            }
             dependencies {
                 implementation(project(":shared"))
                 implementation(compose.runtime)
                 implementation(compose.foundation)
                 implementation(compose.material3)
+                implementation(compose.materialIconsExtended)
                 implementation(compose.ui)
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
             }
         }
     }

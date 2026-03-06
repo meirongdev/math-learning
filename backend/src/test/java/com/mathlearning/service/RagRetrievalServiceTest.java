@@ -74,20 +74,20 @@ class RagRetrievalServiceTest {
 	// ── formatAsContext ──────────────────────────────────────────────────────
 
 	@Test
-	void formatAsContext_emptyList_returnsNoSimilarMessage() {
+	void formatAsContext_emptyList_returnsEmptyString() {
 		var result = service.formatAsContext(List.of());
-		assertEquals("No similar questions found in the knowledge base.", result);
+		assertEquals("", result);
 	}
 
 	@Test
-	void formatAsContext_withTopicAndDifficulty_includesMetadata() {
+	void formatAsContext_withTopicAndDifficulty_usesCompactQuestionOnlyFormat() {
 		var doc = new Document("Amy has 24 sweets.", Map.of("topic", "fractions", "difficulty", "medium"));
 
 		var result = service.formatAsContext(List.of(doc));
 
 		assertTrue(result.contains("Amy has 24 sweets."), "should include document text");
-		assertTrue(result.contains("Topic: fractions"), "should include topic metadata");
-		assertTrue(result.contains("Difficulty: medium"), "should include difficulty metadata");
+		assertFalse(result.contains("Topic: fractions"), "compact prompt should omit topic metadata");
+		assertFalse(result.contains("Difficulty: medium"), "compact prompt should omit difficulty metadata");
 	}
 
 	@Test
@@ -102,24 +102,24 @@ class RagRetrievalServiceTest {
 	}
 
 	@Test
-	void formatAsContext_multipleDocuments_numbersEachQuestion() {
+	void formatAsContext_multipleDocuments_formatsAsBullets() {
 		var doc1 = new Document("First question", Map.of());
 		var doc2 = new Document("Second question", Map.of());
 		var doc3 = new Document("Third question", Map.of());
 
 		var result = service.formatAsContext(List.of(doc1, doc2, doc3));
 
-		assertTrue(result.contains("Question 1: First question"));
-		assertTrue(result.contains("Question 2: Second question"));
-		assertTrue(result.contains("Question 3: Third question"));
+		assertTrue(result.contains("- First question"));
+		assertTrue(result.contains("- Second question"));
+		assertTrue(result.contains("- Third question"));
 	}
 
 	@Test
-	void formatAsContext_containsSectionHeader() {
+	void formatAsContext_containsCompactSectionHeader() {
 		var doc = new Document("Some question", Map.of());
 
 		var result = service.formatAsContext(List.of(doc));
 
-		assertTrue(result.contains("Similar Questions from PSLE Question Bank"));
+		assertTrue(result.contains("=== Similar Questions ==="));
 	}
 }

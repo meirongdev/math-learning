@@ -165,4 +165,18 @@ class SolveControllerTest extends AbstractIntegrationTest {
 						""")).andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
+
+	@Test
+	void solve_SocraticMode_Returns200WithResult() throws Exception {
+		var result = new SolveResult("Socratic parent guide", "What do you think 5 + 3 equals? 🤔", "{}",
+				List.of("whole_numbers"));
+		when(solveService.solve(any())).thenReturn(result);
+
+		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
+				.header("Authorization", "Bearer " + token).content("""
+						{"question":"What is 5 + 3?","grade":1,"mode":"SOCRATIC"}
+						""")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.parentGuide").value("Socratic parent guide"))
+				.andExpect(jsonPath("$.childScript").value("What do you think 5 + 3 equals? 🤔"));
+	}
 }

@@ -3,10 +3,17 @@ package com.mathlearning.shared.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class ExplanationMode {
+    ORIGINAL,
+    SOCRATIC,
+}
+
+@Serializable
 data class SolveRequest(
     val question: String,
     val grade: Int,
     val studentId: String? = null,
+    val mode: ExplanationMode? = null,
 )
 
 @Serializable

@@ -88,13 +88,15 @@ Request:
 {
   "question": "Amy has 24 sweets. She gives 1/3 to Bob. How many does Amy have left?",
   "grade": 3,
-  "studentId": "optional-student-uuid"
+  "studentId": "optional-student-uuid",
+  "mode": "ORIGINAL"
 }
 ```
 
 Constraints:
 - `question`: non-blank, max 500 chars
 - `grade`: integer between 1 and 6
+- `mode`: `ORIGINAL` (default) or `SOCRATIC` — optional, defaults to `ORIGINAL` when omitted
 
 Response `200 OK`:
 
@@ -109,7 +111,7 @@ Response `200 OK`:
 
 Behavior:
 - If `studentId` is provided and exists, a solve record is persisted and knowledge progress is updated.
-- Response is cached by `question + grade` for 24h.
+- Response is cached by `question + grade + mode` for 24h.
 
 ### Solve Stream (SSE)
 

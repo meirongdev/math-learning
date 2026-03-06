@@ -37,6 +37,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# ---- Playwright ----
+e2e/test-results/
+e2e/playwright-report/
+
 # ---- OS ----
 .DS_Store
 Thumbs.db
@@ -50,3 +54,4 @@ captures/
 .externalNativeBuild/
 .cxx/
 .logs/
+test-results/

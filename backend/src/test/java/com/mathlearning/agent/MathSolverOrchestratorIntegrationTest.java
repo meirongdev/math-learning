@@ -27,7 +27,7 @@ class MathSolverOrchestratorIntegrationTest {
 
 	@Test
 	void solve_SimpleAddition_ReturnsStructuredResult() {
-		var request = new SolveRequest("5+3=?", 1, UUID.randomUUID());
+		var request = new SolveRequest("5+3=?", 1, UUID.randomUUID(), null);
 
 		SolveResult result = orchestrator.solve(request);
 
@@ -51,7 +51,7 @@ class MathSolverOrchestratorIntegrationTest {
 
 	@Test
 	void solve_Algebra_ReturnsStructuredResult() {
-		var request = new SolveRequest("x+3=8, find x", 6, UUID.randomUUID());
+		var request = new SolveRequest("x+3=8, find x", 6, UUID.randomUUID(), null);
 
 		SolveResult result = orchestrator.solve(request);
 

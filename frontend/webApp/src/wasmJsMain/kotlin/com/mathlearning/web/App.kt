@@ -1,5 +1,6 @@
 package com.mathlearning.web
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,11 +38,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 enum class Screen { Solve, Knowledge, History }
+
+@Serializable
+private data class OcrParseResult(
+    val fileName: String = "",
+    val text: String = "",
+)
 
 @Composable
 fun App() {
@@ -432,7 +443,7 @@ fun StudentManagementDialog(
                         readOnly = true,
                         label = { Text("Grade") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gradeExpanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
                         expanded = gradeExpanded,
@@ -507,6 +518,17 @@ fun SolveScreen(
     var hasResults by remember { mutableStateOf(false) }
     var lastRecordId by remember { mutableStateOf<String?>(null) }
     var currentRating by remember { mutableStateOf<Int?>(null) }
+    var isSavingRating by remember { mutableStateOf(false) }
+    var isOcrLoading by remember { mutableStateOf(false) }
+    var ocrSource by remember { mutableStateOf<String?>(null) }
+    var ocrStatus by remember { mutableStateOf<String?>(null) }
+    var selectedMode by remember { mutableStateOf(ExplanationMode.ORIGINAL) }
+
+    val json = remember {
+        Json {
+            ignoreUnknownKeys = true
+        }
+    }
 
     val grades = listOf("P1", "P2", "P3", "P4", "P5", "P6")
 
@@ -567,7 +589,7 @@ fun SolveScreen(
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = studentExpanded) },
-                            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         )
                         ExposedDropdownMenu(
                             expanded = studentExpanded,
@@ -603,11 +625,66 @@ fun SolveScreen(
                     value = question,
                     onValueChange = { question = it },
                     label = { Text("Math Question") },
-                    placeholder = { Text("e.g. Amy has 24 sweets. She gives 1/3 to Bob. How many does Amy have left?") },
+                    placeholder = { Text("e.g. Amy has 24 sweets... / 小明有24颗糖，给了Bob三分之一，还剩多少？") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 6,
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            isOcrLoading = true
+                            ocrStatus = null
+                            scope.launch {
+                                try {
+                                    val result = runBrowserOcr(json)
+                                    if (result.cancelled) {
+                                        ocrStatus = "OCR cancelled. You can upload another image anytime."
+                                        ocrSource = null
+                                        return@launch
+                                    }
+                                    ocrSource = result.fileName.ifBlank { null }
+                                    if (result.text.isBlank()) {
+                                        ocrStatus = "No text was detected. Try a clearer photo with better lighting."
+                                    } else {
+                                        question = result.text
+                                        ocrStatus = "OCR completed. Review the extracted text before solving."
+                                    }
+                                } catch (e: Exception) {
+                                    ocrStatus = e.message ?: "OCR failed. Please try again."
+                                } finally {
+                                    isOcrLoading = false
+                                }
+                            }
+                        },
+                        enabled = !isOcrLoading && !isLoading,
+                    ) {
+                        Text(if (isOcrLoading) "Recognizing..." else "Upload Image OCR")
+                    }
+
+                    if (ocrSource != null) {
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("Source: ${ocrSource}") },
+                        )
+                    }
+                }
+
+                if (ocrStatus != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = ocrStatus ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (ocrStatus!!.startsWith("OCR completed")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -621,7 +698,7 @@ fun SolveScreen(
                         readOnly = true,
                         label = { Text("Grade Level") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gradeExpanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
                         expanded = gradeExpanded,
@@ -639,6 +716,28 @@ fun SolveScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Explanation mode switcher
+                Text("Explanation Mode", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExplanationMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = selectedMode == mode,
+                            onClick = { selectedMode = mode },
+                            label = {
+                                Text(
+                                    when (mode) {
+                                        ExplanationMode.ORIGINAL -> "\uD83D\uDCDD Direct"
+                                        ExplanationMode.SOCRATIC -> "\uD83E\uDD14 Socratic"
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
@@ -653,6 +752,7 @@ fun SolveScreen(
                         hasResults = false
                         lastRecordId = null
                         currentRating = null
+                        isSavingRating = false
 
                         scope.launch {
                             try {
@@ -660,12 +760,18 @@ fun SolveScreen(
                                     question = question,
                                     grade = selectedGrade.removePrefix("P").toInt(),
                                     studentId = selectedStudent?.id,
+                                    mode = selectedMode,
                                 )
                                 val result = withTimeout(300_000L) { api.solve(request) }
                                 parentGuide = result.parentGuide ?: ""
                                 childScript = result.childScript ?: ""
                                 barModel = result.barModelJson ?: ""
                                 knowledgeTags = result.knowledgeTags?.joinToString(", ") ?: ""
+                                if (selectedStudent != null) {
+                                    val newestRecord = api.getRecords(selectedStudent.id, page = 0, size = 1).records.firstOrNull()
+                                    lastRecordId = newestRecord?.id
+                                    currentRating = newestRecord?.rating
+                                }
                                 hasResults = true
                             } catch (e: UnauthorizedException) {
                                 onLogout()
@@ -755,10 +861,24 @@ fun SolveScreen(
             }
 
             // Star rating
-            StarRatingCard(currentRating) { rating ->
+            StarRatingCard(
+                currentRating = currentRating,
+                enabled = lastRecordId != null,
+                isSaving = isSavingRating,
+                helperText = if (lastRecordId == null) "Select a student before solving to save a rating." else null,
+            ) { rating ->
+                val recordId = lastRecordId ?: return@StarRatingCard
                 currentRating = rating
-                // If we had the record ID, we'd save it. For now, rating is visual feedback.
-                // The record was already persisted server-side during solve.
+                isSavingRating = true
+                scope.launch {
+                    try {
+                        api.rateRecord(recordId, rating)
+                    } catch (_: Exception) {
+                        currentRating = null
+                    } finally {
+                        isSavingRating = false
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -780,7 +900,13 @@ fun SolveScreen(
 // ============================================================================
 
 @Composable
-fun StarRatingCard(currentRating: Int?, onRate: (Int) -> Unit) {
+fun StarRatingCard(
+    currentRating: Int?,
+    enabled: Boolean = true,
+    isSaving: Boolean = false,
+    helperText: String? = null,
+    onRate: (Int) -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -788,20 +914,73 @@ fun StarRatingCard(currentRating: Int?, onRate: (Int) -> Unit) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Rate this explanation", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (1..5).forEach { star ->
-                    val filled = currentRating != null && star <= currentRating
-                    Text(
-                        text = if (filled) "\u2605" else "\u2606",
-                        fontSize = 32.sp,
-                        color = if (filled) Color(0xFFFFC107) else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.clickable { onRate(star) },
-                    )
-                }
+            RatingSelector(
+                currentRating = currentRating,
+                enabled = enabled && !isSaving,
+                onRate = onRate,
+            )
+            if (helperText != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(helperText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             }
-            if (currentRating != null) {
+            if (isSaving) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Saving rating...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            } else if (currentRating != null && enabled) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Rating saved!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+fun RatingSelector(currentRating: Int?, enabled: Boolean, onRate: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        (1..5).forEach { star ->
+            val filled = currentRating != null && star <= currentRating
+            FilledTonalIconButton(
+                onClick = { onRate(star) },
+                enabled = enabled,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = if (filled) Color(0xFFFFF3C4) else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (filled) Color(0xFFE0A800) else MaterialTheme.colorScheme.outline,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.outline,
+                ),
+            ) {
+                Icon(
+                    imageVector = if (filled) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                    contentDescription = "Rate $star out of 5",
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RatingBadge(rating: Int, compact: Boolean = false) {
+    val safeRating = rating.coerceIn(1, 5)
+    Surface(
+        color = Color(0xFFFFF3C4),
+        contentColor = Color(0xFFE0A800),
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.dp, Color(0xFFFFE08A)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = if (compact) 4.dp else 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(safeRating) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(if (compact) 14.dp else 16.dp),
+                )
+            }
+            if (safeRating < 5) {
+                Text("$safeRating/5", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -1033,7 +1212,7 @@ fun HistoryScreen(
                     readOnly = true,
                     label = { Text("Filter by student") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = studentExpanded) },
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(
                     expanded = studentExpanded,
@@ -1117,11 +1296,7 @@ fun HistoryScreen(
                             // Stars
                             val ratingVal = record.rating
                             if (ratingVal != null) {
-                                Text(
-                                    "\u2605".repeat(ratingVal) + "\u2606".repeat(5 - ratingVal),
-                                    color = Color(0xFFFFC107),
-                                    fontSize = 14.sp,
-                                )
+                                RatingBadge(ratingVal, compact = true)
                             }
                             Text(
                                 record.createdAt.take(19).replace("T", " "),
@@ -1153,21 +1328,14 @@ fun HistoryScreen(
                             var localRating by remember(record.id) { mutableStateOf(record.rating) }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Rate: ", style = MaterialTheme.typography.bodySmall)
-                                (1..5).forEach { star ->
-                                    val filled = localRating != null && star <= (localRating ?: 0)
-                                    Text(
-                                        text = if (filled) "\u2605" else "\u2606",
-                                        fontSize = 20.sp,
-                                        color = if (filled) Color(0xFFFFC107) else MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.clickable {
-                                            localRating = star
-                                            scope.launch {
-                                                try {
-                                                    api.rateRecord(record.id, star)
-                                                } catch (_: Exception) {}
-                                            }
-                                        },
-                                    )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                RatingSelector(currentRating = localRating, enabled = true) { star ->
+                                    localRating = star
+                                    scope.launch {
+									try {
+										api.rateRecord(record.id, star)
+									} catch (_: Exception) {}
+								}
                                 }
                             }
                         }

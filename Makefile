@@ -120,7 +120,13 @@ check-ollama: ## Check Ollama service
 
 # ---- Smoke Test ----
 
-.PHONY: smoke-test
+.PHONY: smoke-test e2e-test e2e-install
+
+e2e-install: ## Install E2E test dependencies (Playwright + Chromium)
+	cd e2e && npm install && npx playwright install chromium
+
+e2e-test: ## Run E2E tests (requires dev-full running)
+	cd e2e && npx playwright test
 
 smoke-test: ## Quick API smoke test (register + login + generate problem)
 	@echo "--- Register ---"

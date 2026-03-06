@@ -20,24 +20,35 @@ Key Java 25 features in use: **Virtual Threads** (high-concurrency agent request
 
 ## Agent Pipeline
 
-The solve pipeline makes two sequential LLM calls:
+The solve pipeline makes two sequential LLM calls, with the second step dynamically adjusted based on the user's selected **Explanation Mode**:
 
 ```mermaid
 graph TD
-    A[SolveRequest\nquestion + grade] --> B[RagRetrievalService\nTop-5 similar PSLE questions\ngrade-filtered from vector_store]
+    A[SolveRequest\nquestion + grade + mode] --> B[RagRetrievalService\nTop-5 similar PSLE questions\ngrade-filtered from vector_store]
     B --> C[Planner Agent\nExtracts knowledge tags,\nbuilds step-by-step plan\nJSON output]
-    C --> D[Content Agent\nGenerates barModel,\nparentGuide, childScript\nJSON output]
-    D --> E[SolveResult]
+    C --> D{Explanation Mode}
+    D -- ORIGINAL --> E[Content Agent\nGenerates standard guide,\nchild script, bar model]
+    D -- SOCRATIC --> F[Socratic Agent\nGenerates heuristic questions,\nparent guide, bar model]
+    E --> G[SolveResult]
+    F --> G[SolveResult]
 
     classDef io fill:#fff,stroke:#1976d2,stroke-width:2px
     classDef agent fill:#fff,stroke:#f57c00,stroke-width:2px
     classDef rag fill:#fff,stroke:#388e3c,stroke-width:2px
-    class A,E io
-    class C,D agent
+    class A,G io
+    class C,E,F agent
     class B rag
 ```
 
+### Explanation Modes (Phase 8)
+
+| Mode | Description | Target Audience |
+|:-----|:------------|:----------------|
+| **ORIGINAL** | Direct, step-by-step solution with a fun child script. | Parents who want to quickly check answers or explain directly. |
+| **SOCRATIC** | Heuristic approach using leading questions to guide the child. | Parents who want to tutor their child without giving away answers. |
+
 ### Planner Agent
+...
 
 - **Input**: raw question + grade + RAG context (top-5 similar questions)
 - **Output**: `{"knowledgeTags":[...],"steps":[...],"answer":"...","difficulty":"easy|medium|hard"}`

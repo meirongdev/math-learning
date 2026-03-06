@@ -50,7 +50,7 @@ public class SolveService {
 	 * L1 miss, the semantic cache (L2) and full LLM pipeline (L3) are tried in
 	 * order.
 	 */
-	@Cacheable(value = "solveResults", key = "#request.question().trim().toLowerCase() + ':' + #request.grade()")
+	@Cacheable(value = "solveResults", key = "#request.question().trim().toLowerCase() + ':' + #request.grade() + ':' + #request.effectiveMode()")
 	public SolveResult solve(SolveRequest request) {
 		// L2: semantic cache — high-similarity vector match
 		Optional<SolveResult> cached = semanticCacheService.findSimilar(request.question(), request.grade());

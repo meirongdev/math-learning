@@ -20,7 +20,7 @@ public class RagRetrievalService {
 
 	private static final Logger log = LoggerFactory.getLogger(RagRetrievalService.class);
 
-	private static final int TOP_K = 5;
+	private static final int TOP_K = 3;
 	private static final double SIMILARITY_THRESHOLD = 0.5;
 
 	private final VectorStore vectorStore;
@@ -58,20 +58,13 @@ public class RagRetrievalService {
 	 */
 	public String formatAsContext(List<Document> documents) {
 		if (documents.isEmpty()) {
-			return "No similar questions found in the knowledge base.";
+			return "";
 		}
 
-		var sb = new StringBuilder("=== Similar Questions from PSLE Question Bank ===\n\n");
+		var sb = new StringBuilder("=== Similar Questions ===\n");
 		for (int i = 0; i < documents.size(); i++) {
 			Document doc = documents.get(i);
-			sb.append("Question %d: %s\n".formatted(i + 1, doc.getText()));
-			if (doc.getMetadata().containsKey("topic")) {
-				sb.append("  Topic: %s\n".formatted(doc.getMetadata().get("topic")));
-			}
-			if (doc.getMetadata().containsKey("difficulty")) {
-				sb.append("  Difficulty: %s\n".formatted(doc.getMetadata().get("difficulty")));
-			}
-			sb.append("\n");
+			sb.append("- ").append(doc.getText()).append('\n');
 		}
 		return sb.toString();
 	}

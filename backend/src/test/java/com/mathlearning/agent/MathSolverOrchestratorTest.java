@@ -1,6 +1,7 @@
 package com.mathlearning.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mathlearning.model.ExplanationMode;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.service.RagRetrievalService;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -174,5 +176,55 @@ class MathSolverOrchestratorTest {
 		var result = orchestrator.solve(new SolveRequest("5 + 3 = ?", 1));
 
 		assertFalse(result.knowledgeTags().isEmpty(), "should parse JSON even when wrapped in markdown");
+	}
+
+	@Test
+	void solve_socraticMode_returnsPopulatedSolveResult() {
+		stubLlm(PLANNER_JSON, CONTENT_JSON);
+		stubRag(List.of());
+
+		var request = new SolveRequest("5 + 3 = ?", 1, null, ExplanationMode.SOCRATIC);
+		var result = orchestrator.solve(request);
+
+		assertNotNull(result);
+		assertNotNull(result.parentGuide());
+		assertNotNull(result.childScript());
+		assertFalse(result.barModelJson().isBlank());
+	}
+
+	@Test
+	void solve_simpleAddition_usesDeterministicFastPathWithoutLlm() {
+		var request = new SolveRequest("What is 3 + 4?", 1, null, ExplanationMode.SOCRATIC);
+
+		var result = orchestrator.solve(request);
+
+		assertNotNull(result);
+		assertTrue(result.parentGuide().contains("fast addition fact"));
+		assertTrue(result.childScript().contains("What numbers do you see"));
+		assertEquals(List.of("whole_numbers", "basic_arithmetic"), result.knowledgeTags());
+		verifyNoInteractions(chatClient, ragRetrievalService);
+	}
+
+	@Test
+	void solve_socraticMode_whenSecondPassFails_returnsPlannerDerivedFallback() {
+		var requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+		var callSpec = mock(ChatClient.CallResponseSpec.class);
+
+		when(chatClient.prompt()).thenReturn(requestSpec);
+		when(requestSpec.system(anyString())).thenReturn(requestSpec);
+		when(requestSpec.user(anyString())).thenReturn(requestSpec);
+		when(requestSpec.options(any())).thenReturn(requestSpec);
+		when(requestSpec.call()).thenReturn(callSpec);
+		when(callSpec.content()).thenReturn(PLANNER_JSON).thenThrow(new RuntimeException("timeout"));
+		stubRag(List.of());
+
+		var request = new SolveRequest("5 + 3 = ?", 1, null, ExplanationMode.SOCRATIC);
+		var result = orchestrator.solve(request);
+
+		assertNotNull(result);
+		assertTrue(result.parentGuide().contains("Guide the child"));
+		assertTrue(result.childScript().contains("What is the question asking us to find?"));
+		assertEquals("{}", result.barModelJson());
+		assertEquals(List.of("whole_numbers", "basic_fractions"), result.knowledgeTags());
 	}
 }
