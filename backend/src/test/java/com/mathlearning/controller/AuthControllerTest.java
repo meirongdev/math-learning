@@ -40,7 +40,7 @@ class AuthControllerTest extends AbstractIntegrationTest {
 				.andExpect(status().isCreated());
 
 		mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
-				.andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("Email already registered"));
+				.andExpect(status().isConflict()).andExpect(jsonPath("$.message").value("Email already registered"));
 	}
 
 	@Test
@@ -66,6 +66,6 @@ class AuthControllerTest extends AbstractIntegrationTest {
 		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"%s","password":"wrongpass"}
 				""".formatted(email))).andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.error").value("Invalid email or password"));
+				.andExpect(jsonPath("$.message").value("Invalid email or password"));
 	}
 }

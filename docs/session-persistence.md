@@ -148,18 +148,20 @@ Catch `UnauthorizedException` in `MathTutorScreen` and set `isLoggedIn = false`.
 
 ### Frontend – shared module
 
-- [ ] Add `expect` declarations for `saveToken`, `loadToken`, `loadExpiresAt`, `clearToken`
+- [x] Add `expect` declarations for `saveToken`, `loadToken`, `loadExpiresAt`, `clearToken`
       in `shared/src/commonMain/kotlin/com/mathlearning/shared/storage/TokenStore.kt`
-- [ ] Add no-op `actual` implementations in `shared/src/jvmMain/kotlin/.../storage/`
-- [ ] Call `saveToken` in `MathApi.login()` after storing `token`
+- [x] Add no-op `actual` implementations in `shared/src/jvmMain/kotlin/.../storage/`
+- [x] Call `saveToken` in `MathApi.login()` after storing `token`
 
 ### Frontend – webApp
 
-- [ ] Add `actual` implementations backed by `localStorage` in
-      `webApp/src/wasmJsMain/kotlin/com/mathlearning/web/TokenStore.kt`
-- [ ] Update `App()` to restore `isLoggedIn` from stored token
-- [ ] Call `clearToken()` in the logout lambda
-- [ ] Add 401 interceptor to Ktor client or handle `UnauthorizedException` at composable level
+- [x] Add `actual` implementations backed by `localStorage` in
+      `shared/src/wasmJsMain/kotlin/com/mathlearning/shared/storage/TokenStore.kt`
+      (uses `@JsFun` with `JsString` for Kotlin/Wasm JS interop)
+- [x] Update `App()` to restore `isLoggedIn` from stored token
+      (uses `kotlinx-datetime` `Instant.parse` + `Clock.System.now()` for expiry check)
+- [x] Call `clearToken()` in the logout lambda
+- [x] Add 401 interceptor to Ktor client (`HttpResponseValidator` throws `UnauthorizedException`)
 
 ### Backend
 

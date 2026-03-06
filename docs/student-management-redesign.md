@@ -72,29 +72,30 @@ single-page feel while giving student management its own focused surface.
 
 ### Backend
 
-- [ ] `DELETE /api/v1/students/{id}` — delete a student owned by the authenticated user.
+- [x] `DELETE /api/v1/students/{id}` — delete a student owned by the authenticated user.
   - Returns `204 No Content` on success.
   - Returns `404` if not found or not owned by the caller.
-- [ ] `PUT /api/v1/students/{id}` — update name/grade (optional, for edit support).
+  - Cascade deletes associated solve records and knowledge progress (via JPA).
+- [ ] `PUT /api/v1/students/{id}` — update name/grade (optional, deferred).
 
 ### Frontend – shared module (`Models.kt` / `MathApi.kt`)
 
-- [ ] Add `suspend fun deleteStudent(id: String)` to `MathApi`.
-- [ ] Add `suspend fun updateStudent(id: String, name: String, grade: Int): Student` (optional).
+- [x] Add `suspend fun deleteStudent(id: String)` to `MathApi`.
+- [ ] Add `suspend fun updateStudent(id: String, name: String, grade: Int): Student` (deferred).
 
 ### Frontend – `App.kt`
 
-- [ ] Remove `showAddStudent`, `newStudentName`, `newStudentGrade` state from `MathTutorScreen`.
-- [ ] Add `showManageDialog: Boolean` state.
-- [ ] Extract `StudentManagementDialog` composable:
+- [x] Remove `showAddStudent`, `newStudentName`, `newStudentGrade` state from `MathTutorScreen`.
+- [x] Add `showManageDialog: Boolean` state.
+- [x] Extract `StudentManagementDialog` composable:
   - Parameters: `students`, `onAdd`, `onDelete`, `onDismiss`.
   - Internal state: `newName`, `newGrade` (defaults P3), `addGradeExpanded`, `isAdding`.
-  - Grade picker uses same `ExposedDropdownMenuBox` pattern as the solve card.
-- [ ] After dialog closes, if `selectedStudent` was deleted, reset to `students.firstOrNull()`.
+  - Grade picker uses `ExposedDropdownMenuBox` pattern.
+- [x] After dialog closes, if `selectedStudent` was deleted, reset to `students.firstOrNull()`.
 
 ### Frontend – error handling
 
-- [ ] Show inline error inside the dialog (not the global `errorMessage`) so the tutoring screen
+- [x] Show inline error inside the dialog (not the global `errorMessage`) so the tutoring screen
   is not polluted by student management errors.
 
 ---

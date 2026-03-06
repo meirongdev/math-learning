@@ -55,6 +55,9 @@ public class SolveRecord {
 	@JdbcTypeCode(SqlTypes.ARRAY)
 	private List<String> knowledgeTags;
 
+	@Column(name = "rating")
+	private Integer rating;
+
 	@Column(name = "created_at", updatable = false)
 	@Builder.Default
 	private OffsetDateTime createdAt = OffsetDateTime.now();

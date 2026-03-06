@@ -12,7 +12,9 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,5 +61,13 @@ public class StudentController {
 		return studentProfileRepository.findByParentIdOrderByCreatedAtDesc(userId).stream()
 				.map(s -> new StudentResponse(s.getId(), s.getName(), s.getGrade(), s.getCreatedAt().toString()))
 				.toList();
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deleteStudent(@AuthenticationPrincipal UUID userId, @PathVariable UUID id) {
+		return studentProfileRepository.findById(id).filter(s -> s.getParent().getId().equals(userId)).map(s -> {
+			studentProfileRepository.delete(s);
+			return ResponseEntity.noContent().<Void>build();
+		}).orElse(ResponseEntity.notFound().build());
 	}
 }

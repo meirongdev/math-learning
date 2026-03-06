@@ -6,14 +6,7 @@ All request/response bodies are `application/json` unless noted.
 
 ---
 
-## Scope Notes
-
-- `Implemented` sections reflect current backend code behavior.
-- `Planned (Phase 6+)` sections are design targets and are not yet available by default.
-
----
-
-## Auth (Implemented)
+## Auth
 
 ### Register
 
@@ -41,7 +34,8 @@ Error `409 Conflict`:
 
 ```json
 {
-  "error": "Email already registered"
+  "code": "CONFLICT",
+  "message": "Email already registered"
 }
 ```
 
@@ -72,16 +66,17 @@ Error `401 Unauthorized`:
 
 ```json
 {
-  "error": "Invalid email or password"
+  "code": "UNAUTHORIZED",
+  "message": "Invalid email or password"
 }
 ```
 
 Authentication rule:
-- All endpoints require `Authorization: Bearer <jwt>` except `/api/v1/auth/**` and `/actuator/**`.
+- All endpoints require `Authorization: Bearer <jwt>` except `/api/v1/auth/**`, `/api/v1/knowledge/graph`, and `/actuator/**`.
 
 ---
 
-## Solve (Implemented)
+## Solve
 
 ### Solve JSON
 
@@ -145,7 +140,7 @@ Note:
 
 ---
 
-## Students (Implemented)
+## Students
 
 ### Create Student
 
@@ -187,9 +182,19 @@ Response `200 OK`:
 ]
 ```
 
+### Delete Student
+
+`DELETE /api/v1/students/{id}`
+
+Deletes a student owned by the authenticated user. Cascades to associated solve records and knowledge progress.
+
+Response `204 No Content` — deleted successfully.
+
+Error `404 Not Found` — student not found or not owned by the caller.
+
 ---
 
-## Records (Implemented)
+## Records
 
 ### Get Solve History
 
@@ -207,6 +212,7 @@ Response `200 OK`:
       "childScript": "Let's share some sweets...",
       "barModelJson": "{...}",
       "knowledgeTags": ["basic_fractions"],
+      "rating": 4,
       "createdAt": "2026-03-06T10:00:00Z"
     }
   ],
@@ -217,11 +223,45 @@ Response `200 OK`:
 }
 ```
 
+### Rate a Solve Record
+
+`PATCH /api/v1/records/{recordId}/rating`
+
+Request:
+
+```json
+{
+  "rating": 4
+}
+```
+
+Constraints:
+- `rating`: integer between 1 and 5
+
+Response `200 OK`:
+
+```json
+{
+  "recordId": "550e8400-e29b-41d4-a716-446655440000",
+  "rating": 4,
+  "suggestedMastery": "MASTERED"
+}
+```
+
+Behavior:
+- Saves the rating to `solve_records.rating`.
+- Auto-updates mastery level for associated knowledge tags based on rating:
+  - 4–5 stars → `MASTERED`
+  - 2–3 stars → `FAMILIAR`
+  - 1 star → `UNKNOWN`
+
+Error `404 Not Found` — record not found.
+
 ---
 
-## Knowledge (Implemented)
+## Knowledge
 
-### Get Knowledge Progress
+### Get Knowledge Progress (legacy)
 
 `GET /api/v1/knowledge/{studentId}`
 
@@ -235,7 +275,97 @@ Response `200 OK`:
     "attemptCount": 3,
     "correctCount": 0,
     "masteryScore": "0.00",
+    "masteryLevel": "FAMILIAR",
     "updatedAt": "2026-03-06T10:00:00Z"
+  }
+]
+```
+
+### Get Knowledge Graph (public)
+
+`GET /api/v1/knowledge/graph`
+
+No authentication required. Returns the full P1–P6 knowledge node tree.
+
+Response `200 OK`:
+
+```json
+[
+  {
+    "code": "numbers",
+    "nameEn": "Numbers & Algebra",
+    "nameZh": "数与代数",
+    "parentCode": null,
+    "gradeStart": 1,
+    "children": [
+      {
+        "code": "whole_numbers",
+        "nameEn": "Whole Numbers",
+        "nameZh": "整数",
+        "parentCode": "numbers",
+        "gradeStart": 1,
+        "children": [
+          {
+            "code": "wn.addition",
+            "nameEn": "Addition",
+            "nameZh": "加法",
+            "parentCode": "whole_numbers",
+            "gradeStart": 1,
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+]
+```
+
+### Get Student Knowledge Progress
+
+`GET /api/v1/knowledge/{studentId}/progress`
+
+Same response format as `GET /api/v1/knowledge/{studentId}`.
+
+### Update Mastery Level
+
+`PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}`
+
+Request:
+
+```json
+{
+  "masteryLevel": "MASTERED"
+}
+```
+
+Constraints:
+- `masteryLevel`: must be `UNKNOWN`, `FAMILIAR`, or `MASTERED`
+
+Response `204 No Content` — mastery updated successfully.
+
+---
+
+## Assessment Questions
+
+### Get Questions
+
+`GET /api/v1/questions?tag={nodeCode}&grade={n}&limit={n}`
+
+Query parameters (all optional):
+- `tag`: knowledge node code to filter by (e.g. `frac.add_sub`)
+- `grade`: grade level 1–6
+- `limit`: max results (default 10, max 50)
+
+Response `200 OK`:
+
+```json
+[
+  {
+    "id": "a0000005-0000-0000-0000-000000000001",
+    "questionText": "Amy has 3/4 of a pizza. She eats 1/3 of what she has...",
+    "grade": 5,
+    "difficulty": "medium",
+    "answerHint": "1/3 x 3/4 = 1/4"
   }
 ]
 ```
@@ -244,8 +374,7 @@ Response `200 OK`:
 
 ## Error Format
 
-Current state:
-- Most application exceptions are returned by global handler as:
+All application exceptions use a unified format:
 
 ```json
 {
@@ -254,20 +383,11 @@ Current state:
 }
 ```
 
-- Auth controller currently returns `{ "error": "..." }` for login/register business errors.
-
-Planned cleanup:
-- Unify auth error responses to `{code, message}` in a later refactor.
-
----
-
-## Planned (Phase 6+)
-
-These endpoints are part of design docs and not implemented yet:
-
-- `DELETE /api/v1/students/{id}`
-- `GET /api/v1/knowledge/graph`
-- `GET /api/v1/knowledge/{studentId}/progress`
-- `PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}`
-- `PATCH /api/v1/records/{recordId}/rating`
-- `GET /api/v1/questions?tag={code}&grade={n}&limit={n}`
+Error codes:
+- `VALIDATION_ERROR` (400) — input validation failure
+- `UNAUTHORIZED` (401) — invalid or missing credentials
+- `CONFLICT` (409) — duplicate resource (e.g. email already registered)
+- `LLM_TIMEOUT` (504) — LLM call timed out
+- `LLM_PARSE_ERROR` (500) — LLM response could not be parsed
+- `ACCESS_DENIED` (403) — forbidden
+- `INTERNAL_ERROR` (500) — unexpected server error

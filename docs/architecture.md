@@ -8,7 +8,7 @@
 | Backend framework | Spring Boot | 4.0.3 (Spring Framework 7) |
 | AI integration | Spring AI | 2.0.0-M2 |
 | Build | Gradle | 9.2 |
-| Frontend | Kotlin Multiplatform + Compose for Web (Wasm) | Kotlin 2.1+ |
+| Frontend | Kotlin Multiplatform + Compose for Web (Wasm) | Kotlin 2.3+ |
 | Database | PostgreSQL + pgvector | 17, 768-dim HNSW index |
 | Cache | Redis | 7.x |
 | LLM (dev) | Ollama + qwen3.5:2b | local, zero API cost |
@@ -119,6 +119,7 @@ CREATE TABLE solve_records (
     child_script   TEXT,
     bar_model_json JSONB,
     knowledge_tags TEXT[],
+    rating         INTEGER CHECK (rating BETWEEN 1 AND 5),  -- parent star rating (1-5)
     created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -130,8 +131,36 @@ CREATE TABLE knowledge_progress (
     mastery_score  DECIMAL(5,2) DEFAULT 0,
     attempt_count  INTEGER DEFAULT 0,
     correct_count  INTEGER DEFAULT 0,
+    mastery_level  VARCHAR(10) NOT NULL DEFAULT 'UNKNOWN'
+                   CHECK (mastery_level IN ('UNKNOWN', 'FAMILIAR', 'MASTERED')),
     updated_at     TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (student_id, knowledge_code)
+);
+
+-- Knowledge graph nodes (P1-P6 Singapore Math syllabus)
+CREATE TABLE knowledge_nodes (
+    code        VARCHAR(100) PRIMARY KEY,
+    name_en     VARCHAR(200) NOT NULL,
+    name_zh     VARCHAR(200) NOT NULL,
+    parent_code VARCHAR(100) REFERENCES knowledge_nodes(code),
+    grade_start INTEGER NOT NULL CHECK (grade_start BETWEEN 1 AND 6),
+    sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+-- Assessment question bank
+CREATE TABLE assessment_questions (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_text TEXT NOT NULL,
+    grade         INTEGER NOT NULL CHECK (grade BETWEEN 1 AND 6),
+    difficulty    VARCHAR(10) NOT NULL CHECK (difficulty IN ('easy', 'medium', 'hard')),
+    answer_hint   TEXT
+);
+
+-- Many-to-many: questions <-> knowledge nodes
+CREATE TABLE assessment_question_tags (
+    question_id UUID REFERENCES assessment_questions(id) ON DELETE CASCADE,
+    node_code   VARCHAR(100) REFERENCES knowledge_nodes(code),
+    PRIMARY KEY (question_id, node_code)
 );
 
 -- RAG vector store (managed by Spring AI PgVectorStore)
@@ -144,7 +173,7 @@ CREATE TABLE vector_store (
 CREATE INDEX ON vector_store USING hnsw (embedding vector_cosine_ops);
 ```
 
-Schema is managed by Flyway (`backend/src/main/resources/db/migration/`). The `vector_store` table is auto-created by Spring AI (`initialize-schema: true`).
+Schema is managed by Flyway (`backend/src/main/resources/db/migration/`, V1–V3). The `vector_store` table is auto-created by Spring AI (`initialize-schema: true`). Seed data includes 63 knowledge nodes and 68 assessment questions.
 
 ### Redis
 

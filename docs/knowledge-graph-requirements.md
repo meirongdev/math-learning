@@ -263,8 +263,12 @@ CREATE TABLE assessment_question_tags (
 
 ---
 
-## 8. 与当前系统的一致性说明
+## 8. 实施状态（Phase 6 已完成）
 
-- 当前知识点追踪接口为 `GET /api/v1/knowledge/{studentId}`，返回 attempt/correct/masteryScore 聚合信息。
-- 本文中的 `GET /api/v1/knowledge/graph`、`/progress` 路径属于 Phase 6 目标，不代表当前已上线。
-- `rating` 字段与 `PATCH /api/v1/records/{recordId}/rating` 需先完成数据库迁移再对外承诺。
+以上所有功能已在 Phase 6 中实现：
+
+- `knowledge_nodes` 表（63 节点）和 `assessment_questions` 表（68 题）已通过 Flyway V2/V3 迁移创建并填充种子数据。
+- `knowledge_progress.mastery_level` 和 `solve_records.rating` 列已添加。
+- 所有 API 端点已上线：`GET /api/v1/knowledge/graph`、`GET /api/v1/knowledge/{studentId}/progress`、`PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}`、`GET /api/v1/questions`、`PATCH /api/v1/records/{recordId}/rating`。
+- 前端已实现三 Tab 导航（Solve / Knowledge / History）、知识图谱树形页、历史记录页、星级评分组件。
+- 详细 API 文档见 `docs/reference/api.md`。

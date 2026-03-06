@@ -21,8 +21,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "knowledge_progress", uniqueConstraints = @UniqueConstraint(columnNames = { "student_id",
-		"knowledge_code" }))
+@Table(name = "knowledge_progress", uniqueConstraints = @UniqueConstraint(columnNames = {"student_id",
+		"knowledge_code"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -52,6 +52,10 @@ public class KnowledgeProgress {
 	@Column(name = "correct_count")
 	@Builder.Default
 	private int correctCount = 0;
+
+	@Column(name = "mastery_level", nullable = false, length = 10)
+	@Builder.Default
+	private String masteryLevel = "UNKNOWN";
 
 	@Column(name = "updated_at")
 	@Builder.Default

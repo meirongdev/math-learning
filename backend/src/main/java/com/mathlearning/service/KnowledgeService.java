@@ -38,8 +38,7 @@ public class KnowledgeService {
 			return;
 		}
 		for (String tag : knowledgeTags) {
-			KnowledgeProgress progress = knowledgeProgressRepository
-					.findByStudentIdAndKnowledgeCode(studentId, tag)
+			KnowledgeProgress progress = knowledgeProgressRepository.findByStudentIdAndKnowledgeCode(studentId, tag)
 					.orElseGet(() -> KnowledgeProgress.builder().student(student).knowledgeCode(tag).build());
 			progress.setAttemptCount(progress.getAttemptCount() + 1);
 			progress.setUpdatedAt(OffsetDateTime.now());
@@ -50,5 +49,21 @@ public class KnowledgeService {
 
 	public List<KnowledgeProgress> getProgress(UUID studentId) {
 		return knowledgeProgressRepository.findByStudentIdOrderByAttemptCountDesc(studentId);
+	}
+
+	@Transactional
+	public void updateMastery(UUID studentId, String knowledgeCode, String masteryLevel) {
+		StudentProfile student = studentProfileRepository.findById(studentId).orElse(null);
+		if (student == null) {
+			log.warn("StudentProfile {} not found, skipping mastery update", studentId);
+			return;
+		}
+		KnowledgeProgress progress = knowledgeProgressRepository
+				.findByStudentIdAndKnowledgeCode(studentId, knowledgeCode)
+				.orElseGet(() -> KnowledgeProgress.builder().student(student).knowledgeCode(knowledgeCode).build());
+		progress.setMasteryLevel(masteryLevel);
+		progress.setUpdatedAt(OffsetDateTime.now());
+		knowledgeProgressRepository.save(progress);
+		log.info("Mastery updated for student {} node {} to {}", studentId, knowledgeCode, masteryLevel);
 	}
 }

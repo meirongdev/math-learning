@@ -8,7 +8,7 @@ AI-powered math tutoring app targeting the **2026 PSLE syllabus**. Built for par
 |:------|:-----------|:--------|
 | Backend | Java + Spring Boot + Spring AI | Java 25, Spring Boot 4.0.3, Spring AI 2.0.0-M2 |
 | Build | Gradle | 9.2 |
-| Frontend | Kotlin Multiplatform + Compose for Web (Wasm) | Kotlin 2.1+ |
+| Frontend | Kotlin Multiplatform + Compose for Web (Wasm) | Kotlin 2.3+ |
 | Database | PostgreSQL + pgvector | PostgreSQL 17, 768-dim HNSW index |
 | Cache | Redis | 7.x |
 | LLM (dev) | Ollama + qwen3.5:2b | local, zero API cost |
@@ -50,15 +50,16 @@ math-learning/
 │       │   ├── agent/         # MathSolverOrchestrator
 │       │   ├── config/        # OllamaConfig, CacheConfig, SecurityConfig
 │       │   ├── controller/    # REST endpoints
+│       │   ├── exception/     # Global error handler, custom exceptions
 │       │   ├── model/         # JPA entities & DTOs (Java records)
 │       │   ├── repository/    # Spring Data JPA repositories
 │       │   └── service/       # Business logic, RAG retrieval
 │       └── resources/
 │           ├── application.yml / application-dev.yml / application-prod.yml
 │           ├── data/          # sg-math-questions.json (PSLE question bank)
-│           └── db/migration/  # Flyway migrations
+│           └── db/migration/  # Flyway migrations (V1–V3)
 ├── frontend/         # KMP + Compose Wasm frontend
-│   ├── shared/       # Shared Kotlin module (API client, models)
+│   ├── shared/       # Shared Kotlin module (API client, models, token storage)
 │   └── webApp/       # Web application (Wasm target)
 ├── infra/            # Docker Compose, Dockerfiles, DB init scripts
 ├── deployment/
@@ -82,9 +83,10 @@ math-learning/
 - [x] **Phase 3** — Web frontend (Compose Wasm)
 - [x] **Phase 4** — Code quality: unified error handling, input validation, test baseline
 - [x] **Phase 5** — Feature completeness: JWT enforcement, student profiles, solve history, knowledge tracking
-- [ ] **Phase 6** — Local performance: semantic cache, LLM retry
-- [ ] **Phase 7** — Advanced features: weakness analysis, recommendations, OCR (optional)
-- [ ] **Phase 8** — Production deployment: CI images, homelab k8s, observability
+- [x] **Phase 6** — UX polish + Knowledge graph + Assessment question bank + Star rating
+- [ ] **Phase 7** — Local performance: semantic cache, LLM retry
+- [ ] **Phase 8** — Advanced features: weakness analysis, recommendations, OCR (optional)
+- [ ] **Phase 9** — Production deployment: CI images, homelab k8s, observability
 
 See [docs/roadmap.md](docs/roadmap.md) for details.
 

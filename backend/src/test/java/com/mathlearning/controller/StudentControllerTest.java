@@ -38,8 +38,8 @@ class StudentControllerTest extends AbstractIntegrationTest {
 	void createStudent_ValidRequest_Returns201() throws Exception {
 		mockMvc.perform(post("/api/v1/students").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"name":"Alice","grade":3}
-				""")).andExpect(status().isCreated()).andExpect(jsonPath("$.studentId").exists())
+						{"name":"Alice","grade":3}
+						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.id").exists())
 				.andExpect(jsonPath("$.name").value("Alice")).andExpect(jsonPath("$.grade").value(3));
 	}
 
@@ -47,11 +47,10 @@ class StudentControllerTest extends AbstractIntegrationTest {
 	void listStudents_ReturnsCreatedStudents() throws Exception {
 		mockMvc.perform(post("/api/v1/students").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"name":"Bob","grade":5}
-				""")).andExpect(status().isCreated());
+						{"name":"Bob","grade":5}
+						""")).andExpect(status().isCreated());
 
-		mockMvc.perform(
-				get("/api/v1/students").header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+		mockMvc.perform(get("/api/v1/students").header("Authorization", "Bearer " + token)).andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].name").value("Bob")).andExpect(jsonPath("$[0].grade").value(5));
 	}
 
@@ -66,15 +65,17 @@ class StudentControllerTest extends AbstractIntegrationTest {
 	void createStudent_InvalidGrade_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/students").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"name":"Alice","grade":7}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"name":"Alice","grade":7}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 
 	@Test
 	void createStudent_BlankName_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/students").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"name":"","grade":3}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"name":"","grade":3}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 }

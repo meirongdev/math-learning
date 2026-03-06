@@ -46,8 +46,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":1}
-				""")).andExpect(status().isOk()).andExpect(jsonPath("$.parentGuide").value("Parent guide text"))
+						{"question":"What is 5 + 3?","grade":1}
+						""")).andExpect(status().isOk()).andExpect(jsonPath("$.parentGuide").value("Parent guide text"))
 				.andExpect(jsonPath("$.childScript").value("Child script text"))
 				.andExpect(jsonPath("$.knowledgeTags[0]").value("whole_numbers"));
 	}
@@ -65,8 +65,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 	void solve_BlankQuestion_Returns400WithCode() throws Exception {
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"","grade":3}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+						{"question":"","grade":3}
+						""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
 				.andExpect(jsonPath("$.message").exists());
 	}
 
@@ -75,8 +75,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 		String longQuestion = "x".repeat(501);
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"%s","grade":3}
-				""".formatted(longQuestion))).andExpect(status().isBadRequest())
+						{"question":"%s","grade":3}
+						""".formatted(longQuestion))).andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 
@@ -84,24 +84,27 @@ class SolveControllerTest extends AbstractIntegrationTest {
 	void solve_GradeTooLow_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":0}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"question":"What is 5 + 3?","grade":0}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 
 	@Test
 	void solve_GradeTooHigh_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":7}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"question":"What is 5 + 3?","grade":7}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 
 	@Test
 	void solve_NullQuestion_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"grade":3}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"grade":3}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 
 	// ── GlobalExceptionHandler (error response format) ───────────────────────
@@ -112,8 +115,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":1}
-				""")).andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.code").value("LLM_TIMEOUT"))
+						{"question":"What is 5 + 3?","grade":1}
+						""")).andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.code").value("LLM_TIMEOUT"))
 				.andExpect(jsonPath("$.message").value("LLM timed out after 60s"));
 	}
 
@@ -123,8 +126,9 @@ class SolveControllerTest extends AbstractIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":1}
-				""")).andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("LLM_PARSE_ERROR"))
+						{"question":"What is 5 + 3?","grade":1}
+						""")).andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.code").value("LLM_PARSE_ERROR"))
 				.andExpect(jsonPath("$.message").value("bad JSON"));
 	}
 
@@ -134,8 +138,9 @@ class SolveControllerTest extends AbstractIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/solve").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":1}
-				""")).andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+						{"question":"What is 5 + 3?","grade":1}
+						""")).andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
 	}
 
 	// ── SSE streaming endpoint ────────────────────────────────────────────────
@@ -147,8 +152,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 
 		mockMvc.perform(post("/api/v1/solve/stream").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"What is 5 + 3?","grade":1}
-				""")).andExpect(status().isOk())
+						{"question":"What is 5 + 3?","grade":1}
+						""")).andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
 	}
 
@@ -156,7 +161,8 @@ class SolveControllerTest extends AbstractIntegrationTest {
 	void solveStream_BlankQuestion_Returns400() throws Exception {
 		mockMvc.perform(post("/api/v1/solve/stream").contentType(MediaType.APPLICATION_JSON)
 				.header("Authorization", "Bearer " + token).content("""
-				{"question":"","grade":3}
-				""")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+						{"question":"","grade":3}
+						""")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 	}
 }

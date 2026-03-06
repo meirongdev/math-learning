@@ -37,7 +37,8 @@ public class AuthController {
 	@PostMapping("/register")
 	public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
 		if (userRepository.existsByEmail(request.email())) {
-			return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("CONFLICT", "Email already registered"));
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(new ErrorResponse("CONFLICT", "Email already registered"));
 		}
 
 		User user = User.builder().email(request.email()).password(passwordEncoder.encode(request.password())).build();
@@ -50,11 +51,11 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 		return userRepository.findByEmail(request.email())
-				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword())).map(user -> {
+				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
+				.<ResponseEntity<?>>map(user -> {
 					String token = jwtService.generateToken(user.getId());
-					return ResponseEntity
-							.ok(Map.of("token", token, "userId", user.getId(), "expiresAt",
-									jwtService.getExpiration(token).toString()));
+					return ResponseEntity.ok(Map.of("token", token, "userId", user.getId(), "expiresAt",
+							jwtService.getExpiration(token).toString()));
 				}).orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
 						.body(new ErrorResponse("UNAUTHORIZED", "Invalid email or password")));
 	}

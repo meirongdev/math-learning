@@ -84,7 +84,7 @@
 
 ---
 
-## Phase 5: 功能完整性 ⚠️ <small>(基本完成，部分遗留)</small>
+## Phase 5: 功能完整性 ✅ <small>(已完成)</small>
 
 > **目标**：补齐数据库已建表但尚未接通的功能，让应用形成完整闭环。
 >
@@ -95,10 +95,7 @@
 > - 前端新增登录/注册页面、学生选择器，`MathApi.kt` 注入 Bearer Token
 > - 测试使用 Testcontainers 单例容器模式，避免跨测试类容器生命周期问题
 >
-> **遗留问题（移至 Phase 6）：**
-> - 前端刷新页面后需重新登录（Token 未持久化）
-> - 学生管理 UI 混在解题页，缺少年级选择器、编辑、删除功能
-> - 解题历史页、知识点掌握度页前端未实现
+> **UX 遗留问题已在 Phase 6 解决：** Token 持久化、学生管理重设计、历史页与知识点页。
 
 ### Task 5.1: JWT 正式启用
 
@@ -139,7 +136,7 @@
 
 ---
 
-## Phase 6: UX 完善 + 知识图谱与掌握度评估
+## Phase 6: UX 完善 + 知识图谱与掌握度评估 ✅ <small>(已完成)</small>
 
 > **目标**：修复 Phase 5 遗留 UX 问题，建立完整的知识图谱体系与测评闭环。
 >
@@ -147,6 +144,13 @@
 > - [session-persistence.md](session-persistence.md) — Token 持久化方案
 > - [student-management-redesign.md](student-management-redesign.md) — 学生管理重设计
 > - [knowledge-graph-requirements.md](knowledge-graph-requirements.md) — 知识图谱与评估需求
+>
+> **实施说明：**
+> - Flyway V2 迁移：`knowledge_nodes`（63 节点 P1–P6）、`assessment_questions`（68 题）+ `assessment_question_tags`、`solve_records.rating`、`knowledge_progress.mastery_level`
+> - Flyway V3 迁移：种子数据（知识图谱节点 + 测评题库）
+> - 后端：`KnowledgeController` 重写（graph/progress/mastery APIs）、`RecordController` 增加 rating、`StudentController` 增加 DELETE、新增 `AssessmentController`
+> - 前端：`TokenStore` expect/actual（localStorage）、401 拦截器、三 Tab 导航（Solve/Knowledge/History）、`StudentManagementDialog`、知识图谱树形页、历史记录页、星级评分组件
+> - `kotlinx-datetime:0.6.1` 用于 Token 过期校验
 
 ### Task 6.1: Session 持久化（Phase 5 遗留）
 
@@ -307,7 +311,6 @@
 
 | 优先级 | 任务 |
 |:-------|:-----|
-| **立即（Phase 6）** | Session 持久化、学生管理重设计、知识图谱、题库测评、历史星级评分 |
-| **接下来（Phase 7）** | 语义缓存、LLM 重试、pgvector 性能验证 |
+| **立即（Phase 7）** | 语义缓存、LLM 重试、pgvector 性能验证 |
 | **按需（Phase 8）** | 薄弱点推荐、自适应学习路径、OCR |
 | **最后（Phase 9）** | CI 镜像、k8s 部署、可观测性 |

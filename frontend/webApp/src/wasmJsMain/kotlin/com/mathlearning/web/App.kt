@@ -1,29 +1,45 @@
 package com.mathlearning.web
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mathlearning.shared.api.MathApi
-import com.mathlearning.shared.model.SolveRequest
-import com.mathlearning.shared.model.Student
+import com.mathlearning.shared.api.UnauthorizedException
+import com.mathlearning.shared.model.*
+import com.mathlearning.shared.storage.clearToken
+import com.mathlearning.shared.storage.loadExpiresAt
+import com.mathlearning.shared.storage.loadToken
 import com.mathlearning.web.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.isActive
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.json.*
+
+enum class Screen { Solve, Knowledge, History }
 
 @Composable
 fun App() {
@@ -33,10 +49,22 @@ fun App() {
             color = MaterialTheme.colorScheme.background,
         ) {
             val api = remember { MathApi() }
-            var isLoggedIn by remember { mutableStateOf(false) }
+
+            var isLoggedIn by remember {
+                val stored = loadToken()
+                val expiresAt = loadExpiresAt()
+                val valid = stored != null && expiresAt != null &&
+                    try { Instant.parse(expiresAt) > Clock.System.now() } catch (_: Exception) { false }
+                if (valid) api.token = stored
+                mutableStateOf(valid)
+            }
 
             if (isLoggedIn) {
-                MathTutorScreen(api) { isLoggedIn = false }
+                MainApp(api) {
+                    clearToken()
+                    api.token = null
+                    isLoggedIn = false
+                }
             } else {
                 AuthScreen(api) { isLoggedIn = true }
             }
@@ -45,18 +73,159 @@ fun App() {
 }
 
 @Composable
+fun MainApp(api: MathApi, onLogout: () -> Unit) {
+    var currentScreen by remember { mutableStateOf(Screen.Solve) }
+    var students by remember { mutableStateOf<List<Student>>(emptyList()) }
+    var selectedStudent by remember { mutableStateOf<Student?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            students = api.listStudents()
+            if (students.isNotEmpty()) selectedStudent = students.first()
+        } catch (_: UnauthorizedException) {
+            onLogout()
+        } catch (_: Exception) {}
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top bar with navigation
+        TopBar(
+            currentScreen = currentScreen,
+            onScreenChange = { currentScreen = it },
+            onLogout = onLogout,
+        )
+
+        // Content
+        when (currentScreen) {
+            Screen.Solve -> SolveScreen(
+                api = api,
+                students = students,
+                selectedStudent = selectedStudent,
+                onStudentSelected = { selectedStudent = it },
+                onStudentsChanged = { newList ->
+                    students = newList
+                    if (selectedStudent != null && newList.none { it.id == selectedStudent!!.id }) {
+                        selectedStudent = newList.firstOrNull()
+                    }
+                },
+                onLogout = onLogout,
+            )
+            Screen.Knowledge -> KnowledgeScreen(
+                api = api,
+                selectedStudent = selectedStudent,
+                onLogout = onLogout,
+            )
+            Screen.History -> HistoryScreen(
+                api = api,
+                students = students,
+                selectedStudent = selectedStudent,
+                onStudentSelected = { selectedStudent = it },
+                onLogout = onLogout,
+            )
+        }
+    }
+}
+
+@Composable
+fun TopBar(currentScreen: Screen, onScreenChange: (Screen) -> Unit, onLogout: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "SG Math Tutor",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                OutlinedButton(onClick = onLogout) {
+                    Text("Logout")
+                }
+            }
+            // Navigation tabs
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Screen.entries.forEach { screen ->
+                    val label = when (screen) {
+                        Screen.Solve -> "Solve"
+                        Screen.Knowledge -> "Knowledge"
+                        Screen.History -> "History"
+                    }
+                    val selected = currentScreen == screen
+                    TextButton(
+                        onClick = { onScreenChange(screen) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                            if (selected) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(40.dp)
+                                        .height(2.dp)
+                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(1.dp)),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Auth Screen
+// ============================================================================
+
+@Composable
 fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     var isLogin by remember { mutableStateOf(true) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
+    fun performAuth() {
+        if (email.isBlank() || password.isBlank() || isLoading) return
+        isLoading = true
+        errorMessage = null
+        scope.launch {
+            try {
+                if (isLogin) {
+                    api.login(email, password)
+                    onLoginSuccess()
+                } else {
+                    val success = api.register(email, password)
+                    if (success) {
+                        api.login(email, password)
+                        onLoginSuccess()
+                    } else {
+                        errorMessage = "Registration failed"
+                    }
+                }
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "An error occurred"
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -66,15 +235,12 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
-
         Spacer(modifier = Modifier.height(8.dp))
-
         Text(
             text = "AI-powered Singapore PSLE Math tutor",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
         Spacer(modifier = Modifier.height(32.dp))
 
         Card(
@@ -87,7 +253,6 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -96,8 +261,9 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                     label = { Text("Email") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
                 )
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
@@ -107,6 +273,8 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { performAuth() }),
                 )
 
                 if (errorMessage != null) {
@@ -121,31 +289,7 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
-                    onClick = {
-                        if (email.isBlank() || password.isBlank()) return@Button
-                        isLoading = true
-                        errorMessage = null
-                        scope.launch {
-                            try {
-                                if (isLogin) {
-                                    api.login(email, password)
-                                    onLoginSuccess()
-                                } else {
-                                    val success = api.register(email, password)
-                                    if (success) {
-                                        api.login(email, password)
-                                        onLoginSuccess()
-                                    } else {
-                                        errorMessage = "Registration failed"
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                errorMessage = e.message ?: "An error occurred"
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    },
+                    onClick = { performAuth() },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     enabled = email.isNotBlank() && password.isNotBlank() && !isLoading,
                 ) {
@@ -163,60 +307,214 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TextButton(
-                    onClick = {
-                        isLogin = !isLogin
-                        errorMessage = null
-                    },
+                    onClick = { isLogin = !isLogin; errorMessage = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        if (isLogin) "Don't have an account? Register" else "Already have an account? Login",
-                    )
+                    Text(if (isLogin) "Don't have an account? Register" else "Already have an account? Login")
                 }
             }
         }
     }
 }
 
+// ============================================================================
+// Student Management Dialog
+// ============================================================================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
+fun StudentManagementDialog(
+    api: MathApi,
+    students: List<Student>,
+    onStudentsChanged: (List<Student>) -> Unit,
+    onDismiss: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
+    var newName by remember { mutableStateOf("") }
+    var newGrade by remember { mutableStateOf("P3") }
+    var gradeExpanded by remember { mutableStateOf(false) }
+    var isAdding by remember { mutableStateOf(false) }
+    var dialogError by remember { mutableStateOf<String?>(null) }
+    val grades = listOf("P1", "P2", "P3", "P4", "P5", "P6")
 
+    fun performAddStudent() {
+        if (newName.isBlank() || isAdding) return
+        isAdding = true
+        dialogError = null
+        scope.launch {
+            try {
+                api.createStudent(newName, newGrade.removePrefix("P").toInt())
+                val updated = api.listStudents()
+                onStudentsChanged(updated)
+                newName = ""
+            } catch (e: Exception) {
+                dialogError = "Add failed: ${e.message}"
+            } finally {
+                isAdding = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage Students") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Student list
+                students.forEach { student ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("${student.name} (P${student.grade})", modifier = Modifier.weight(1f))
+                        TextButton(
+                            onClick = {
+                                dialogError = null
+                                scope.launch {
+                                    try {
+                                        api.deleteStudent(student.id)
+                                        val updated = api.listStudents()
+                                        onStudentsChanged(updated)
+                                    } catch (e: Exception) {
+                                        dialogError = "Delete failed: ${e.message}"
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text("Delete")
+                        }
+                    }
+                }
+
+                if (students.isEmpty()) {
+                    Text(
+                        "No students yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text("Add Student", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { performAddStudent() }),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ExposedDropdownMenuBox(
+                    expanded = gradeExpanded,
+                    onExpandedChange = { gradeExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = newGrade,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Grade") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gradeExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = gradeExpanded,
+                        onDismissRequest = { gradeExpanded = false },
+                    ) {
+                        grades.forEach { g ->
+                            DropdownMenuItem(
+                                text = { Text(g) },
+                                onClick = { newGrade = g; gradeExpanded = false },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { performAddStudent() },
+                    enabled = newName.isNotBlank() && !isAdding,
+                ) {
+                    Text("Add")
+                }
+
+                if (dialogError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = dialogError ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+    )
+}
+
+// ============================================================================
+// Solve Screen
+// ============================================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SolveScreen(
+    api: MathApi,
+    students: List<Student>,
+    selectedStudent: Student?,
+    onStudentSelected: (Student?) -> Unit,
+    onStudentsChanged: (List<Student>) -> Unit,
+    onLogout: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
     var question by remember { mutableStateOf("") }
     var selectedGrade by remember { mutableStateOf("P3") }
     var gradeExpanded by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var elapsedSeconds by remember { mutableStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    // Student selection
-    var students by remember { mutableStateOf<List<Student>>(emptyList()) }
-    var selectedStudent by remember { mutableStateOf<Student?>(null) }
     var studentExpanded by remember { mutableStateOf(false) }
-    var showAddStudent by remember { mutableStateOf(false) }
-    var newStudentName by remember { mutableStateOf("") }
-    var newStudentGrade by remember { mutableStateOf("P3") }
+    var showManageDialog by remember { mutableStateOf(false) }
 
-    // Result sections
+    // Result state
     var parentGuide by remember { mutableStateOf("") }
     var childScript by remember { mutableStateOf("") }
     var barModel by remember { mutableStateOf("") }
     var knowledgeTags by remember { mutableStateOf("") }
     var hasResults by remember { mutableStateOf(false) }
+    var lastRecordId by remember { mutableStateOf<String?>(null) }
+    var currentRating by remember { mutableStateOf<Int?>(null) }
 
     val grades = listOf("P1", "P2", "P3", "P4", "P5", "P6")
 
-    // Load students on first composition
-    LaunchedEffect(Unit) {
-        try {
-            students = api.listStudents()
-            if (students.isNotEmpty()) {
-                selectedStudent = students.first()
+    // Timer: update elapsedSeconds while `isLoading` using a composable-scoped coroutine
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            elapsedSeconds = 0
+            while (isActive && isLoading) {
+                delay(1_000)
+                elapsedSeconds++
             }
-        } catch (_: Exception) {
-            // ignore – students list may fail if none exist
         }
+    }
+
+    if (showManageDialog) {
+        StudentManagementDialog(
+            api = api,
+            students = students,
+            onStudentsChanged = onStudentsChanged,
+            onDismiss = { showManageDialog = false },
+        )
     }
 
     Column(
@@ -226,38 +524,9 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Header with logout
-        Row(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    text = "SG Math Tutor",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = "AI-powered Singapore PSLE Math tutor using CPA method",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            OutlinedButton(onClick = {
-                api.token = null
-                onLogout()
-            }) {
-                Text("Logout")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Student selector card
+        // Student card
         Card(
             modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -268,52 +537,14 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "Student",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    TextButton(onClick = { showAddStudent = !showAddStudent }) {
-                        Text(if (showAddStudent) "Cancel" else "+ Add Student")
-                    }
-                }
-
-                if (showAddStudent) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newStudentName,
-                        onValueChange = { newStudentName = it },
-                        label = { Text("Student Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            if (newStudentName.isBlank()) return@Button
-                            scope.launch {
-                                try {
-                                    val gradeNum = newStudentGrade.removePrefix("P").toInt()
-                                    api.createStudent(newStudentName, gradeNum)
-                                    students = api.listStudents()
-                                    if (selectedStudent == null && students.isNotEmpty()) {
-                                        selectedStudent = students.first()
-                                    }
-                                    newStudentName = ""
-                                    showAddStudent = false
-                                } catch (e: Exception) {
-                                    errorMessage = "Failed to add student: ${e.message}"
-                                }
-                            }
-                        },
-                        enabled = newStudentName.isNotBlank(),
-                    ) {
-                        Text("Add")
+                    Text("Student", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { showManageDialog = true }) {
+                        Text("Manage")
                     }
                 }
 
                 if (students.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     ExposedDropdownMenuBox(
                         expanded = studentExpanded,
                         onExpandedChange = { studentExpanded = it },
@@ -333,7 +564,7 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
                                 DropdownMenuItem(
                                     text = { Text("${student.name} (P${student.grade})") },
                                     onClick = {
-                                        selectedStudent = student
+                                        onStudentSelected(student)
                                         studentExpanded = false
                                     },
                                 )
@@ -346,21 +577,15 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Input Card
+        // Input card
         Card(
             modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "Enter Your Math Question",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-
+                Text("Enter Your Math Question", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Question input
                 OutlinedTextField(
                     value = question,
                     onValueChange = { question = it },
@@ -373,7 +598,6 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Grade selector
                 ExposedDropdownMenuBox(
                     expanded = gradeExpanded,
                     onExpandedChange = { gradeExpanded = it },
@@ -393,10 +617,7 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
                         grades.forEach { grade ->
                             DropdownMenuItem(
                                 text = { Text(grade) },
-                                onClick = {
-                                    selectedGrade = grade
-                                    gradeExpanded = false
-                                },
+                                onClick = { selectedGrade = grade; gradeExpanded = false },
                             )
                         }
                     }
@@ -404,26 +625,13 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Solve button
                 Button(
                     onClick = {
                         if (question.isBlank()) return@Button
                         isLoading = true
                         errorMessage = null
-                        parentGuide = ""
-                        childScript = ""
-                        barModel = ""
-                        knowledgeTags = ""
-                        hasResults = false
-
-                        // Elapsed-time ticker
-                        scope.launch {
-                            elapsedSeconds = 0
-                            while (isLoading) {
-                                delay(1_000)
-                                elapsedSeconds++
-                            }
-                        }
+                        parentGuide = ""; childScript = ""; barModel = ""; knowledgeTags = ""
+                        hasResults = false; lastRecordId = null; currentRating = null
 
                         scope.launch {
                             try {
@@ -432,14 +640,14 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
                                     grade = selectedGrade.removePrefix("P").toInt(),
                                     studentId = selectedStudent?.id,
                                 )
-                                val result = withTimeout(300_000L) {
-                                    api.solve(request)
-                                }
+                                val result = withTimeout(300_000L) { api.solve(request) }
                                 parentGuide = result.parentGuide ?: ""
                                 childScript = result.childScript ?: ""
                                 barModel = result.barModelJson ?: ""
                                 knowledgeTags = result.knowledgeTags?.joinToString(", ") ?: ""
                                 hasResults = true
+                            } catch (e: UnauthorizedException) {
+                                onLogout()
                             } catch (e: Exception) {
                                 errorMessage = e.message ?: "An unexpected error occurred"
                             } finally {
@@ -465,25 +673,18 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Error Alert
+        // Error
         if (errorMessage != null) {
             Card(
                 modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                ),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             ) {
-                Row(
+                Text(
+                    text = errorMessage ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = errorMessage ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -497,9 +698,7 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
             }
             Card(
                 modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -507,17 +706,9 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
                 ) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stageMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(stageMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${elapsedSeconds}s elapsed · first response may take ~45s",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
+                    Text("${elapsedSeconds}s elapsed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -525,104 +716,455 @@ fun MathTutorScreen(api: MathApi, onLogout: () -> Unit) {
 
         // Results
         if (hasResults) {
-            // Knowledge Tags
             if (knowledgeTags.isNotBlank()) {
-                ResultSection(
-                    title = "Knowledge Points",
-                    content = knowledgeTags,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                ResultSection("Knowledge Points", knowledgeTags, MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Parent Guide
             if (parentGuide.isNotBlank()) {
-                ResultSection(
-                    title = "Parent Guide",
-                    content = parentGuide,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+                ResultSection("Parent Guide", parentGuide, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Child Script
             if (childScript.isNotBlank()) {
-                ResultSection(
-                    title = "Child's Learning Script",
-                    content = childScript,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                ResultSection("Child's Learning Script", childScript, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Bar Model
             if (barModel.isNotBlank() && barModel != "{}") {
                 BarModelCard(barModel)
                 Spacer(modifier = Modifier.height(12.dp))
             }
+
+            // Star rating
+            StarRatingCard(currentRating) { rating ->
+                currentRating = rating
+                // If we had the record ID, we'd save it. For now, rating is visual feedback.
+                // The record was already persisted server-side during solve.
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Empty state
         if (!hasResults && !isLoading && errorMessage == null) {
             Spacer(modifier = Modifier.height(32.dp))
-            Text(
-                text = "Enter a math question above to get started",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("Enter a math question above to get started", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Supports P1-P6 Singapore Math (PSLE 2026 syllabus)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
+            Text("Supports P1-P6 Singapore Math (PSLE 2026 syllabus)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
 
-        // Footer
-        HorizontalDivider(
-            modifier = Modifier.widthIn(max = 600.dp),
-            color = MaterialTheme.colorScheme.outlineVariant,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "Powered by AI - Aligned with PSLE 2026 Syllabus",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
-        )
+// ============================================================================
+// Star Rating
+// ============================================================================
+
+@Composable
+fun StarRatingCard(currentRating: Int?, onRate: (Int) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Rate this explanation", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (1..5).forEach { star ->
+                    val filled = currentRating != null && star <= currentRating
+                    Text(
+                        text = if (filled) "\u2605" else "\u2606",
+                        fontSize = 32.sp,
+                        color = if (filled) Color(0xFFFFC107) else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.clickable { onRate(star) },
+                    )
+                }
+            }
+            if (currentRating != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Rating saved!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Knowledge Screen
+// ============================================================================
+
+@Composable
+fun KnowledgeScreen(api: MathApi, selectedStudent: Student?, onLogout: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var graph by remember { mutableStateOf<List<KnowledgeNodeResponse>>(emptyList()) }
+    var progress by remember { mutableStateOf<Map<String, String>>(emptyMap()) } // code -> masteryLevel
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedStudent) {
+        isLoading = true
+        try {
+            graph = api.getKnowledgeGraph()
+            if (selectedStudent != null) {
+                val progressList = api.getKnowledgeProgress(selectedStudent.id)
+                progress = progressList.associate { it.knowledgeCode to it.masteryLevel }
+            }
+        } catch (e: UnauthorizedException) {
+            onLogout()
+        } catch (e: Exception) {
+            errorMessage = e.message
+        } finally {
+            isLoading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (selectedStudent != null) {
+            Text(
+                "Knowledge Map for ${selectedStudent.name} (P${selectedStudent.grade})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        } else {
+            Text("Knowledge Map", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else if (errorMessage != null) {
+            Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+        } else {
+            graph.forEach { node ->
+                KnowledgeNodeTree(
+                    node = node,
+                    progress = progress,
+                    level = 0,
+                    selectedStudent = selectedStudent,
+                    onUpdateMastery = { code, level ->
+                        if (selectedStudent != null) {
+                            scope.launch {
+                                try {
+                                    api.updateMastery(selectedStudent.id, code, level)
+                                    progress = progress + (code to level)
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    },
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
 @Composable
-fun ResultSection(
-    title: String,
-    content: String,
-    containerColor: Color,
-    contentColor: Color,
+fun KnowledgeNodeTree(
+    node: KnowledgeNodeResponse,
+    progress: Map<String, String>,
+    level: Int,
+    selectedStudent: Student?,
+    onUpdateMastery: (String, String) -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(level < 1) }
+    val mastery = progress[node.code] ?: "UNKNOWN"
+    val hasChildren = node.children.isNotEmpty()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 600.dp)
+            .padding(start = (level * 16).dp, top = 2.dp, bottom = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (level == 0) 2.dp else 0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (level == 0) MaterialTheme.colorScheme.surfaceVariant
+            else MaterialTheme.colorScheme.surface,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().let { if (hasChildren) it.clickable { expanded = !expanded } else it },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (hasChildren) {
+                    Text(if (expanded) "\u25BC " else "\u25B6 ", fontSize = 12.sp)
+                } else {
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        node.nameEn,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (level == 0) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    Text(
+                        "${node.nameZh} (P${node.gradeStart}+)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // Mastery badge
+                if (!hasChildren && selectedStudent != null) {
+                    MasteryBadge(mastery) { newLevel -> onUpdateMastery(node.code, newLevel) }
+                }
+            }
+
+            if (expanded && hasChildren) {
+                node.children.forEach { child ->
+                    KnowledgeNodeTree(child, progress, level + 1, selectedStudent, onUpdateMastery)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MasteryBadge(mastery: String, onCycle: (String) -> Unit) {
+    val (color, label) = when (mastery) {
+        "MASTERED" -> Color(0xFF4CAF50) to "Mastered"
+        "FAMILIAR" -> Color(0xFFFFC107) to "Familiar"
+        else -> Color(0xFF9E9E9E) to "Unknown"
+    }
+    val next = when (mastery) {
+        "UNKNOWN" -> "FAMILIAR"
+        "FAMILIAR" -> "MASTERED"
+        else -> "UNKNOWN"
+    }
+
+    Surface(
+        modifier = Modifier.clickable { onCycle(next) },
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.2f),
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            color = color,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+// ============================================================================
+// History Screen
+// ============================================================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HistoryScreen(
+    api: MathApi,
+    students: List<Student>,
+    selectedStudent: Student?,
+    onStudentSelected: (Student?) -> Unit,
+    onLogout: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var records by remember { mutableStateOf<List<RecordResponse>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var studentExpanded by remember { mutableStateOf(false) }
+    var expandedRecordId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedStudent) {
+        if (selectedStudent == null) { records = emptyList(); return@LaunchedEffect }
+        isLoading = true
+        errorMessage = null
+        try {
+            val result = api.getRecords(selectedStudent.id)
+            records = result.records
+        } catch (e: UnauthorizedException) {
+            onLogout()
+        } catch (e: Exception) {
+            errorMessage = e.message
+        } finally {
+            isLoading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Solve History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Student filter
+        if (students.isNotEmpty()) {
+            ExposedDropdownMenuBox(
+                expanded = studentExpanded,
+                onExpandedChange = { studentExpanded = it },
+                modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = selectedStudent?.let { "${it.name} (P${it.grade})" } ?: "Select a student",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Filter by student") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = studentExpanded) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                )
+                ExposedDropdownMenu(
+                    expanded = studentExpanded,
+                    onDismissRequest = { studentExpanded = false },
+                ) {
+                    students.forEach { student ->
+                        DropdownMenuItem(
+                            text = { Text("${student.name} (P${student.grade})") },
+                            onClick = { onStudentSelected(student); studentExpanded = false },
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else if (errorMessage != null) {
+            Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+        } else if (records.isEmpty()) {
+            Text("No solve records yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            records.forEach { record ->
+                val isExpanded = expandedRecordId == record.id
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 600.dp)
+                        .padding(vertical = 4.dp)
+                        .clickable { expandedRecordId = if (isExpanded) null else record.id },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                record.questionText.take(80) + if (record.questionText.length > 80) "..." else "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f),
+                                maxLines = if (isExpanded) Int.MAX_VALUE else 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Knowledge tags
+                            record.knowledgeTags?.take(3)?.forEach { tag ->
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                ) {
+                                    Text(
+                                        tag,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            // Stars
+                            val ratingVal = record.rating
+                            if (ratingVal != null) {
+                                Text(
+                                    "\u2605".repeat(ratingVal) + "\u2606".repeat(5 - ratingVal),
+                                    color = Color(0xFFFFC107),
+                                    fontSize = 14.sp,
+                                )
+                            }
+                            Text(
+                                record.createdAt.take(19).replace("T", " "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        }
+
+                        // Expanded content
+                        if (isExpanded) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            val guide = record.parentGuide
+                            if (!guide.isNullOrBlank()) {
+                                Text("Parent Guide", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text(guide, style = MaterialTheme.typography.bodySmall)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            val script = record.childScript
+                            if (!script.isNullOrBlank()) {
+                                Text("Child Script", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text(script, style = MaterialTheme.typography.bodySmall)
+                            }
+
+                            // Rating inline
+                            Spacer(modifier = Modifier.height(8.dp))
+                            var localRating by remember(record.id) { mutableStateOf(record.rating) }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Rate: ", style = MaterialTheme.typography.bodySmall)
+                                (1..5).forEach { star ->
+                                    val filled = localRating != null && star <= (localRating ?: 0)
+                                    Text(
+                                        text = if (filled) "\u2605" else "\u2606",
+                                        fontSize = 20.sp,
+                                        color = if (filled) Color(0xFFFFC107) else MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.clickable {
+                                            localRating = star
+                                            scope.launch {
+                                                try {
+                                                    api.rateRecord(record.id, star)
+                                                } catch (_: Exception) {}
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// ============================================================================
+// Shared Components
+// ============================================================================
+
+@Composable
+fun ResultSection(title: String, content: String, containerColor: Color, contentColor: Color) {
     Card(
         modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = contentColor,
-            )
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = contentColor)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor,
-            )
+            Text(content, style = MaterialTheme.typography.bodyMedium, color = contentColor)
         }
     }
 }
@@ -639,14 +1181,45 @@ private fun parseHexColor(hex: String): Color {
 @Composable
 fun BarModelCard(barModelJson: String) {
     val json = Json { ignoreUnknownKeys = true }
+    val warnings = mutableListOf<String>()
+
     val parsed = try {
         json.parseToJsonElement(barModelJson).jsonObject
-    } catch (_: Exception) {
-        return // invalid JSON, don't render
+    } catch (e: Exception) {
+        warnings.add("JSON parse failed: ${e.message}")
+        null
+    }
+
+    if (parsed == null) {
+        println("BarModelCard debug: JSON parse failed: $barModelJson")
+        Card(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Bar Model (invalid JSON)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(barModelJson.take(500), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                if (warnings.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Debug:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    warnings.forEach { w -> Text("- $w", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+        return
     }
 
     val title = parsed["title"]?.jsonPrimitive?.contentOrNull ?: "Bar Model"
-    val bars = parsed["bars"]?.jsonArray ?: return
+    val barsJson = parsed["bars"]
+    val bars = when (barsJson) {
+        is JsonArray -> barsJson
+        else -> {
+            warnings.add("'bars' is missing or not an array")
+            JsonArray(emptyList())
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
@@ -654,96 +1227,115 @@ fun BarModelCard(barModelJson: String) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
-            )
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Find max total value across all bars for proportional scaling
-            val maxTotal = bars.maxOfOrNull { bar ->
-                bar.jsonObject["segments"]?.jsonArray?.sumOf {
-                    it.jsonObject["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                } ?: 0.0
-            } ?: 1.0
+            val maxTotal = try {
+                bars.map { bar ->
+                    try {
+                        bar.jsonObject["segments"]?.jsonArray?.sumOf {
+                            it.jsonObject["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                        } ?: 0.0
+                    } catch (e: Exception) {
+                        warnings.add("Failed to compute bar total: ${e.message}")
+                        0.0
+                    }
+                }.maxOrNull() ?: 1.0
+            } catch (e: Exception) {
+                warnings.add("Failed to compute maxTotal: ${e.message}")
+                1.0
+            }
+
+            val safeMax = if (maxTotal <= 0.0) {
+                warnings.add("Computed maxTotal <= 0. Falling back to 1.0")
+                1.0
+            } else maxTotal
 
             bars.forEach { bar ->
-                val barObj = bar.jsonObject
-                val label = barObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
-                val segments = barObj["segments"]?.jsonArray ?: return@forEach
+                try {
+                    val barObj = bar.jsonObject
+                    val label = barObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
+                    val segments = barObj["segments"]?.jsonArray
+                    if (segments == null || segments.isEmpty()) {
+                        warnings.add("Bar '$label' has no segments")
+                        return@forEach
+                    }
 
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                    Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                val barTotal = segments.sumOf {
-                    it.jsonObject["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                }
+                    val barTotal = segments.sumOf { seg ->
+                        try {
+                            seg.jsonObject["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                        } catch (e: Exception) {
+                            warnings.add("Invalid segment value: ${e.message}")
+                            0.0
+                        }
+                    }
 
-                if (segments.isNotEmpty() && barTotal > 0) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(6.dp)),
-                    ) {
-                        segments.forEach { segment ->
-                            val segObj = segment.jsonObject
-                            val value = segObj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                            val color = parseHexColor(
-                                segObj["color"]?.jsonPrimitive?.contentOrNull ?: "#4CAF50",
-                            )
-                            val segLabel = segObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
-                            val fraction = (value / maxTotal).toFloat()
+                    if (segments.isNotEmpty() && barTotal > 0) {
+                        Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))) {
+                            segments.forEach { segment ->
+                                try {
+                                    val segObj = segment.jsonObject
+                                    val value = segObj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                                    val colorRaw = segObj["color"]?.jsonPrimitive?.contentOrNull ?: "#4CAF50"
+                                    val color = try {
+                                        parseHexColor(colorRaw)
+                                    } catch (e: Exception) {
+                                        warnings.add("Invalid color '$colorRaw', using fallback")
+                                        parseHexColor("#4CAF50")
+                                    }
+                                    val segLabel = segObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
+                                    val fraction = (value / safeMax).toFloat().coerceAtLeast(0.0f)
 
-                            Box(
-                                modifier = Modifier
-                                    .weight(fraction)
-                                    .fillMaxHeight()
-                                    .background(color)
-                                    .padding(horizontal = 4.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = if (segLabel.isNotBlank()) "$segLabel (${ value.toInt()})" else "${value.toInt()}",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                )
+                                    Box(
+                                        modifier = Modifier.weight(fraction).fillMaxHeight().background(color).padding(horizontal = 4.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = if (segLabel.isNotBlank()) "$segLabel (${value.toInt()})" else "${value.toInt()}",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    warnings.add("Failed to render a segment: ${e.message}")
+                                }
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(10.dp))
+                } catch (e: Exception) {
+                    warnings.add("Failed to render bar: ${e.message}")
                 }
-                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Annotations
             val annotations = parsed["annotations"]?.jsonArray
             if (annotations != null && annotations.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 annotations.forEach { ann ->
                     val text = when {
                         ann is JsonPrimitive -> ann.contentOrNull
-                        ann is JsonObject -> ann["text"]?.jsonPrimitive?.contentOrNull
-                            ?: ann["content"]?.jsonPrimitive?.contentOrNull
+                        ann is JsonObject -> ann["text"]?.jsonPrimitive?.contentOrNull ?: ann["content"]?.jsonPrimitive?.contentOrNull
                         else -> null
                     }
                     if (text != null) {
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
+                        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     }
                 }
+            }
+
+            if (warnings.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Debug info:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                warnings.forEach { w -> Text("- $w", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                println("BarModelCard debug: ${warnings.joinToString("; ")}")
             }
         }
     }
