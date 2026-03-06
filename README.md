@@ -70,6 +70,7 @@ math-learning/
 │   ├── roadmap.md
 │   ├── dev-plan.md           # Detailed task tracking
 │   ├── requirements.md       # Product requirements
+│   ├── product-ideas.md      # Product improvement ideas (Chinese)
 │   ├── reference/            # API, config, make targets, troubleshooting
 │   └── tutorials/            # Step-by-step guides
 └── .github/
@@ -88,7 +89,7 @@ math-learning/
 - [ ] **Phase 8** — Advanced features: weakness analysis, recommendations, OCR (optional)
 - [ ] **Phase 9** — Production deployment: CI images, homelab k8s, observability
 
-See [docs/roadmap.md](docs/roadmap.md) for details.
+See [docs/roadmap.md](docs/roadmap.md) and [docs/product-ideas.md](docs/product-ideas.md) for details.
 
 ## License
 
