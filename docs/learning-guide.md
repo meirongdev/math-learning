@@ -1,6 +1,6 @@
 # Learning Guide
 
-This project is a working production-quality AI tutoring app. Use it to learn modern backend, frontend, and AI engineering simultaneously through real code.
+This project is a runnable AI tutoring app under active iteration. Use it to learn modern backend, frontend, and AI engineering through real code and evolving architecture decisions.
 
 ---
 
@@ -60,8 +60,8 @@ This project is a working production-quality AI tutoring app. Use it to learn mo
 |:-----------|:--------|:----------------|
 | Docker | recent | Container runtime |
 | Docker Compose | recent | Local infra orchestration (PostgreSQL + Redis) |
-| Helm | 3.x | Kubernetes package manager (Phase 8) |
-| ArgoCD | — | GitOps continuous deployment (Phase 8) |
+| Helm | 3.x | Kubernetes package manager (Phase 9) |
+| ArgoCD | — | GitOps continuous deployment (Phase 9) |
 | GitHub Actions | — | CI pipeline (Phase 8) |
 
 ---
@@ -322,10 +322,10 @@ These exercises extend the project and deepen understanding of each technology a
 | Exercise | Skills Practiced |
 |:---------|:----------------|
 | Add a new knowledge tag category | Prompt engineering, RAG data ingestion |
-| Implement JWT enforcement (Phase 5) | Spring Security, filter chain |
-| Write an integration test with Testcontainers | Spring Boot Test, Docker in tests |
-| Add semantic caching (Phase 6) | Vector similarity, Redis, performance |
-| Add a second LLM provider (e.g., Gemini) | Spring AI provider abstraction |
-| Build the student profile CRUD (Phase 5) | Spring Data JPA, REST API design |
-| Add a progress chart to the frontend | Compose Canvas, state management |
-| Implement OCR input (Phase 7) | Multimodal LLM, file upload |
+| Write integration tests with Testcontainers | Spring Boot Test, Docker in tests |
+| Implement session persistence in frontend | KMP expect/actual, browser storage, auth UX |
+| Add semantic caching (Phase 7) | Vector similarity, Redis, performance |
+| Add a second cloud LLM profile | Spring AI provider abstraction |
+| Complete student delete/update APIs | Spring Data JPA, REST API design |
+| Add a knowledge graph page to frontend | Compose state management, API integration |
+| Implement OCR input (Phase 8, optional) | Multimodal LLM, file upload |

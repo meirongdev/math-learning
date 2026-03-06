@@ -67,7 +67,7 @@ Run `make help` to see all targets with descriptions.
 | `make check-backend` | `GET /actuator/health` |
 | `make check-db` | `psql SELECT 1` |
 | `make check-ollama` | `GET /api/tags` |
-| `make smoke-test` | Register + login via curl |
+| `make smoke-test` | Legacy smoke script (currently not aligned with latest auth payload) |
 
 ---
 

@@ -40,7 +40,7 @@
 │   ├── 时间 (Time)
 │   ├── 金钱 (Money)
 │   ├── 面积与周长 (Area & Perimeter)
-│   └── 速度 (Speed) — P5/P6
+│   └── 体积与容积应用 (Volume Applications)
 ├── 图形与几何 (Geometry)
 │   ├── 平面图形 (2D Shapes)
 │   │   ├── 三角形 (Triangles)
@@ -53,7 +53,7 @@
     │   ├── 象形图 (Pictographs) — P1/P2
     │   ├── 条形图 (Bar Graphs) — P2/P3
     │   ├── 折线图 (Line Graphs) — P4
-    │   └── 饼图 (Pie Charts) — P5/P6
+    │   └── 饼图 (Pie Charts) — P4+
     └── 平均数 (Average/Mean) — P4+
 ```
 
@@ -135,6 +135,9 @@
 
 ## 4. API 设计
 
+> 本节为 Phase 6 目标接口设计。
+> 当前已上线接口请以 `docs/reference/api.md` 为准。
+
 ### 知识图谱
 
 | Method | Path | 说明 |
@@ -154,13 +157,13 @@
 | Method | Path | 说明 |
 |:-------|:-----|:-----|
 | `PATCH` | `/api/v1/records/{recordId}/rating` | 保存家长星级评分（1–5） |
-| `GET` | `/api/v1/records/{studentId}` | 历史列表（已有，新增 `rating`、`knowledgeTags` 字段） |
+| `GET` | `/api/v1/records/{studentId}` | 历史列表（已有，后续扩展 `rating` 字段） |
 
 ### 学生管理（补充）
 
 | Method | Path | 说明 |
 |:-------|:-----|:-----|
-| `DELETE` | `/api/v1/students/{id}` | 删除学生档案（已有记录级联软删除） |
+| `DELETE` | `/api/v1/students/{id}` | 删除学生档案（删除策略由实现决定，默认按最小可用方案先实现） |
 
 ---
 
@@ -181,7 +184,7 @@ CREATE TABLE knowledge_nodes (
 
 ### 5.2 修改表 `knowledge_progress`
 
-新增 `mastery_level` 列，替换现有的纯 `attempt_count` 统计：
+新增 `mastery_level` 列，在保留统计字段基础上补充等级视图：
 
 ```sql
 ALTER TABLE knowledge_progress
@@ -257,3 +260,11 @@ CREATE TABLE assessment_question_tags (
 - 知识点依赖关系的自动学习路径规划
 - 基于掌握度的 AI 个性化推题（Phase 8 / 原 Phase 7）
 - 学生自主答题（无 AI 辅助的纯测试模式）
+
+---
+
+## 8. 与当前系统的一致性说明
+
+- 当前知识点追踪接口为 `GET /api/v1/knowledge/{studentId}`，返回 attempt/correct/masteryScore 聚合信息。
+- 本文中的 `GET /api/v1/knowledge/graph`、`/progress` 路径属于 Phase 6 目标，不代表当前已上线。
+- `rating` 字段与 `PATCH /api/v1/records/{recordId}/rating` 需先完成数据库迁移再对外承诺。

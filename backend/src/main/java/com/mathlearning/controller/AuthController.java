@@ -1,5 +1,6 @@
 package com.mathlearning.controller;
 
+import com.mathlearning.exception.ErrorResponse;
 import com.mathlearning.model.entity.User;
 import com.mathlearning.repository.UserRepository;
 import com.mathlearning.service.JwtService;
@@ -36,7 +37,7 @@ public class AuthController {
 	@PostMapping("/register")
 	public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
 		if (userRepository.existsByEmail(request.email())) {
-			return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Email already registered"));
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("CONFLICT", "Email already registered"));
 		}
 
 		User user = User.builder().email(request.email()).password(passwordEncoder.encode(request.password())).build();
@@ -55,6 +56,6 @@ public class AuthController {
 							.ok(Map.of("token", token, "userId", user.getId(), "expiresAt",
 									jwtService.getExpiration(token).toString()));
 				}).orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-						.body(Map.of("error", "Invalid email or password")));
+						.body(new ErrorResponse("UNAUTHORIZED", "Invalid email or password")));
 	}
 }

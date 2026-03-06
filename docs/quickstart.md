@@ -68,8 +68,10 @@ make stop         # stop background services
 
 ```bash
 make check        # health-checks backend, PostgreSQL, Ollama
-make smoke-test   # register + login API test
 ```
+
+> `make smoke-test` 当前脚本仍使用旧请求体字段，暂不作为权威验证方式。
+> 建议使用下方 `curl` 手工验证登录与解题链路。
 
 ### Manual API test
 

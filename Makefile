@@ -126,11 +126,11 @@ smoke-test: ## Quick API smoke test (register + login + generate problem)
 	@echo "--- Register ---"
 	@curl -s -X POST http://localhost:8080/api/v1/auth/register \
 		-H "Content-Type: application/json" \
-		-d '{"username":"testuser","password":"Test1234!","email":"test@example.com"}' | python3 -m json.tool
+		-d '{"email":"test@example.com","password":"Test1234!"}' | python3 -m json.tool
 	@echo "--- Login ---"
 	@curl -s -X POST http://localhost:8080/api/v1/auth/login \
 		-H "Content-Type: application/json" \
-		-d '{"username":"testuser","password":"Test1234!"}' | python3 -m json.tool
+		-d '{"email":"test@example.com","password":"Test1234!"}' | python3 -m json.tool
 
 # ---- Logs & Stop ----
 
