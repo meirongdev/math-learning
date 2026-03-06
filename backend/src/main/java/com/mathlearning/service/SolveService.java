@@ -12,12 +12,17 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import com.mathlearning.agent.MathSolverOrchestrator;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Service layer wrapping the solve pipeline with Redis caching. Cache key is
- * derived from question text + grade level. Identical question+grade
- * combinations return cached results within 24h TTL.
+ * Service layer wrapping the solve pipeline with multi-layer caching:
+ * <ol>
+ * <li>L1 — Redis exact-match cache (question+grade key, 24h TTL)</li>
+ * <li>L2 — Semantic cache (pgvector similarity &gt; 0.98 + Caffeine
+ * in-memory)</li>
+ * <li>L3 — Full LLM agent pipeline</li>
+ * </ol>
  */
 @Service
 public class SolveService {
@@ -28,23 +33,41 @@ public class SolveService {
 	private final SolveRecordRepository solveRecordRepository;
 	private final StudentProfileRepository studentProfileRepository;
 	private final KnowledgeService knowledgeService;
+	private final SemanticCacheService semanticCacheService;
 
 	public SolveService(MathSolverOrchestrator orchestrator, SolveRecordRepository solveRecordRepository,
-			StudentProfileRepository studentProfileRepository, KnowledgeService knowledgeService) {
+			StudentProfileRepository studentProfileRepository, KnowledgeService knowledgeService,
+			SemanticCacheService semanticCacheService) {
 		this.orchestrator = orchestrator;
 		this.solveRecordRepository = solveRecordRepository;
 		this.studentProfileRepository = studentProfileRepository;
 		this.knowledgeService = knowledgeService;
+		this.semanticCacheService = semanticCacheService;
 	}
 
 	/**
-	 * Solves a math question using the multi-agent pipeline. Results are cached by
-	 * question+grade for 24 hours.
+	 * Solves a math question. L1 Redis cache is checked first (via @Cacheable). On
+	 * L1 miss, the semantic cache (L2) and full LLM pipeline (L3) are tried in
+	 * order.
 	 */
 	@Cacheable(value = "solveResults", key = "#request.question().trim().toLowerCase() + ':' + #request.grade()")
 	public SolveResult solve(SolveRequest request) {
+		// L2: semantic cache — high-similarity vector match
+		Optional<SolveResult> cached = semanticCacheService.findSimilar(request.question(), request.grade());
+		if (cached.isPresent()) {
+			log.info("Semantic cache hit for grade {} question", request.grade());
+			persistRecord(request, cached.get());
+			trackKnowledge(request, cached.get());
+			return cached.get();
+		}
+
+		// L3: full LLM agent pipeline
 		log.info("Cache miss - running full agent pipeline for grade {} question", request.grade());
 		SolveResult result = orchestrator.solve(request);
+
+		// Store in semantic cache for future similar questions
+		semanticCacheService.store(request.question(), request.grade(), result);
+
 		persistRecord(request, result);
 		trackKnowledge(request, result);
 		return result;

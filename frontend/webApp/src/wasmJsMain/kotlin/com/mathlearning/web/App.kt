@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,9 +31,9 @@ import com.mathlearning.shared.storage.loadExpiresAt
 import com.mathlearning.shared.storage.loadToken
 import com.mathlearning.web.theme.AppTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.isActive
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.json.*
@@ -53,8 +52,13 @@ fun App() {
             var isLoggedIn by remember {
                 val stored = loadToken()
                 val expiresAt = loadExpiresAt()
-                val valid = stored != null && expiresAt != null &&
-                    try { Instant.parse(expiresAt) > Clock.System.now() } catch (_: Exception) { false }
+                val valid = stored != null &&
+                    expiresAt != null &&
+                    try {
+                        Instant.parse(expiresAt) > Clock.System.now()
+                    } catch (_: Exception) {
+                        false
+                    }
                 if (valid) api.token = stored
                 mutableStateOf(valid)
             }
@@ -161,8 +165,11 @@ fun TopBar(currentScreen: Screen, onScreenChange: (Screen) -> Unit, onLogout: ()
                         onClick = { onScreenChange(screen) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            contentColor = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         ),
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -307,7 +314,10 @@ fun AuthScreen(api: MathApi, onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TextButton(
-                    onClick = { isLogin = !isLogin; errorMessage = null },
+                    onClick = {
+                        isLogin = !isLogin
+                        errorMessage = null
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(if (isLogin) "Don't have an account? Register" else "Already have an account? Login")
@@ -431,7 +441,10 @@ fun StudentManagementDialog(
                         grades.forEach { g ->
                             DropdownMenuItem(
                                 text = { Text(g) },
-                                onClick = { newGrade = g; gradeExpanded = false },
+                                onClick = {
+                                    newGrade = g
+                                    gradeExpanded = false
+                                },
                             )
                         }
                     }
@@ -617,7 +630,10 @@ fun SolveScreen(
                         grades.forEach { grade ->
                             DropdownMenuItem(
                                 text = { Text(grade) },
-                                onClick = { selectedGrade = grade; gradeExpanded = false },
+                                onClick = {
+                                    selectedGrade = grade
+                                    gradeExpanded = false
+                                },
                             )
                         }
                     }
@@ -630,8 +646,13 @@ fun SolveScreen(
                         if (question.isBlank()) return@Button
                         isLoading = true
                         errorMessage = null
-                        parentGuide = ""; childScript = ""; barModel = ""; knowledgeTags = ""
-                        hasResults = false; lastRecordId = null; currentRating = null
+                        parentGuide = ""
+                        childScript = ""
+                        barModel = ""
+                        knowledgeTags = ""
+                        hasResults = false
+                        lastRecordId = null
+                        currentRating = null
 
                         scope.launch {
                             try {
@@ -879,8 +900,11 @@ fun KnowledgeNodeTree(
             .padding(start = (level * 16).dp, top = 2.dp, bottom = 2.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = if (level == 0) 2.dp else 0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (level == 0) MaterialTheme.colorScheme.surfaceVariant
-            else MaterialTheme.colorScheme.surface,
+            containerColor = if (level == 0) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
         ),
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -971,7 +995,10 @@ fun HistoryScreen(
     var expandedRecordId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(selectedStudent) {
-        if (selectedStudent == null) { records = emptyList(); return@LaunchedEffect }
+        if (selectedStudent == null) {
+            records = emptyList()
+            return@LaunchedEffect
+        }
         isLoading = true
         errorMessage = null
         try {
@@ -1015,7 +1042,10 @@ fun HistoryScreen(
                     students.forEach { student ->
                         DropdownMenuItem(
                             text = { Text("${student.name} (P${student.grade})") },
-                            onClick = { onStudentSelected(student); studentExpanded = false },
+                            onClick = {
+                                onStudentSelected(student)
+                                studentExpanded = false
+                            },
                         )
                     }
                 }
@@ -1249,69 +1279,79 @@ fun BarModelCard(barModelJson: String) {
             val safeMax = if (maxTotal <= 0.0) {
                 warnings.add("Computed maxTotal <= 0. Falling back to 1.0")
                 1.0
-            } else maxTotal
+            } else {
+                maxTotal
+            }
 
-            bars.forEach { bar ->
+            // Define internal data structure for rendering
+            data class SegmentModel(val label: String, val value: Double, val color: Color)
+            data class BarModel(val label: String, val segments: List<SegmentModel>, val barTotal: Double)
+
+            val parsedBars = bars.mapNotNull { bar ->
                 try {
                     val barObj = bar.jsonObject
                     val label = barObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
-                    val segments = barObj["segments"]?.jsonArray
-                    if (segments == null || segments.isEmpty()) {
+                    val segmentsArray = barObj["segments"]?.jsonArray
+                    if (segmentsArray == null || segmentsArray.isEmpty()) {
                         warnings.add("Bar '$label' has no segments")
-                        return@forEach
-                    }
-
-                    Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    val barTotal = segments.sumOf { seg ->
-                        try {
-                            seg.jsonObject["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                        } catch (e: Exception) {
-                            warnings.add("Invalid segment value: ${e.message}")
-                            0.0
+                        null
+                    } else {
+                        val segments = segmentsArray.mapNotNull { segment ->
+                            try {
+                                val segObj = segment.jsonObject
+                                val value = segObj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                                val colorRaw = segObj["color"]?.jsonPrimitive?.contentOrNull ?: "#4CAF50"
+                                val color = try {
+                                    parseHexColor(colorRaw)
+                                } catch (e: Exception) {
+                                    warnings.add("Invalid color '$colorRaw', using fallback")
+                                    parseHexColor("#4CAF50")
+                                }
+                                val segLabel = segObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
+                                SegmentModel(segLabel, value, color)
+                            } catch (e: Exception) {
+                                warnings.add("Failed to parse a segment: ${e.message}")
+                                null
+                            }
+                        }
+                        val barTotal = segments.sumOf { it.value }
+                        if (segments.isEmpty() || barTotal <= 0) {
+                            null
+                        } else {
+                            BarModel(label, segments, barTotal)
                         }
                     }
+                } catch (e: Exception) {
+                    warnings.add("Failed to parse bar: ${e.message}")
+                    null
+                }
+            }
 
-                    if (segments.isNotEmpty() && barTotal > 0) {
-                        Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))) {
-                            segments.forEach { segment ->
-                                try {
-                                    val segObj = segment.jsonObject
-                                    val value = segObj["value"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                                    val colorRaw = segObj["color"]?.jsonPrimitive?.contentOrNull ?: "#4CAF50"
-                                    val color = try {
-                                        parseHexColor(colorRaw)
-                                    } catch (e: Exception) {
-                                        warnings.add("Invalid color '$colorRaw', using fallback")
-                                        parseHexColor("#4CAF50")
-                                    }
-                                    val segLabel = segObj["label"]?.jsonPrimitive?.contentOrNull ?: ""
-                                    val fraction = (value / safeMax).toFloat().coerceAtLeast(0.0f)
+            parsedBars.forEach { barModel ->
+                Text(barModel.label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                Spacer(modifier = Modifier.height(4.dp))
 
-                                    Box(
-                                        modifier = Modifier.weight(fraction).fillMaxHeight().background(color).padding(horizontal = 4.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            text = if (segLabel.isNotBlank()) "$segLabel (${value.toInt()})" else "${value.toInt()}",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            textAlign = TextAlign.Center,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    warnings.add("Failed to render a segment: ${e.message}")
-                                }
+                Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(6.dp))) {
+                    barModel.segments.forEach { segment ->
+                        val fraction = (segment.value / safeMax).toFloat().coerceAtLeast(0.0f)
+                        if (fraction > 0) {
+                            Box(
+                                modifier = Modifier.weight(fraction).fillMaxHeight().background(segment.color).padding(horizontal = 4.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = if (segment.label.isNotBlank()) "${segment.label} (${segment.value.toInt()})" else "${segment.value.toInt()}",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                )
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                } catch (e: Exception) {
-                    warnings.add("Failed to render bar: ${e.message}")
                 }
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             val annotations = parsed["annotations"]?.jsonArray
@@ -1331,7 +1371,7 @@ fun BarModelCard(barModelJson: String) {
 
             if (warnings.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Divider()
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Debug info:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 warnings.forEach { w -> Text("- $w", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }

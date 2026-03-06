@@ -1,5 +1,6 @@
 package com.mathlearning.exception;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,13 @@ public class GlobalExceptionHandler {
 		log.error("Failed to parse LLM response", ex);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(new ErrorResponse("LLM_PARSE_ERROR", ex.getMessage()));
+	}
+
+	@ExceptionHandler(CallNotPermittedException.class)
+	public ResponseEntity<ErrorResponse> handleCircuitBreakerOpen(CallNotPermittedException ex) {
+		log.warn("Circuit breaker is open, LLM service temporarily unavailable", ex);
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse("LLM_UNAVAILABLE",
+				"LLM service is temporarily unavailable. Please try again later."));
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)

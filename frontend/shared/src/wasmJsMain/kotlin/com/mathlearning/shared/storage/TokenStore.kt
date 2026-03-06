@@ -20,11 +20,9 @@ actual fun saveToken(token: String, expiresAt: String) {
     jsSetItem("auth_expires_at".toJsString(), expiresAt.toJsString())
 }
 
-actual fun loadToken(): String? =
-    jsGetItem("auth_token".toJsString())?.toString()
+actual fun loadToken(): String? = jsGetItem("auth_token".toJsString())?.toString()
 
-actual fun loadExpiresAt(): String? =
-    jsGetItem("auth_expires_at".toJsString())?.toString()
+actual fun loadExpiresAt(): String? = jsGetItem("auth_expires_at".toJsString())?.toString()
 
 actual fun clearToken() {
     jsRemoveItem("auth_token".toJsString())

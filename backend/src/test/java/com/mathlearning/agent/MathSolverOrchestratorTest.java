@@ -1,9 +1,11 @@
 package com.mathlearning.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mathlearning.exception.LlmResponseParseException;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.service.RagRetrievalService;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -48,7 +51,11 @@ class MathSolverOrchestratorTest {
 
 	@BeforeEach
 	void setUp() {
-		orchestrator = new MathSolverOrchestrator(chatClient, ragRetrievalService, new ObjectMapper(), 60);
+		// Minimal retry (1 attempt = no retry) and default circuit breaker for unit
+		// tests
+		Retry retry = Retry.of("test", RetryConfig.custom().maxAttempts(1).waitDuration(Duration.ofMillis(10)).build());
+		CircuitBreaker cb = CircuitBreaker.ofDefaults("test");
+		orchestrator = new MathSolverOrchestrator(chatClient, ragRetrievalService, new ObjectMapper(), retry, cb, 60);
 	}
 
 	/**
@@ -131,22 +138,30 @@ class MathSolverOrchestratorTest {
 		assertEquals("{}", result.barModelJson());
 	}
 
-	// ── Parse error handling ─────────────────────────────────────────────────
+	// ── Parse error → fallback handling ──────────────────────────────────────
 
 	@Test
-	void solve_plannerReturnsNoJson_throwsLlmResponseParseException() {
+	void solve_plannerReturnsNoJson_returnsFallbackResult() {
 		stubLlm("Sorry, I cannot solve this.", CONTENT_JSON);
 		stubRag(List.of());
 
-		assertThrows(LlmResponseParseException.class, () -> orchestrator.solve(new SolveRequest("5 + 3 = ?", 1)));
+		var result = orchestrator.solve(new SolveRequest("5 + 3 = ?", 1));
+
+		assertNotNull(result);
+		assertTrue(result.parentGuide().contains("couldn't be fully structured"));
+		assertTrue(result.knowledgeTags().isEmpty());
 	}
 
 	@Test
-	void solve_contentReturnsInvalidJson_throwsLlmResponseParseException() {
+	void solve_contentReturnsInvalidJson_returnsFallbackResult() {
 		stubLlm(PLANNER_JSON, "not JSON at all");
 		stubRag(List.of());
 
-		assertThrows(LlmResponseParseException.class, () -> orchestrator.solve(new SolveRequest("5 + 3 = ?", 1)));
+		var result = orchestrator.solve(new SolveRequest("5 + 3 = ?", 1));
+
+		assertNotNull(result);
+		assertTrue(result.parentGuide().contains("couldn't be fully structured"));
+		assertEquals("not JSON at all", result.childScript());
 	}
 
 	@Test

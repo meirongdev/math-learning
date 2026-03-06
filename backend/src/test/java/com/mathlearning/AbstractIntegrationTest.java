@@ -1,5 +1,6 @@
 package com.mathlearning;
 
+import com.mathlearning.service.CacheWarmupService;
 import com.mathlearning.service.JwtService;
 import com.mathlearning.service.QuestionImportService;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -57,6 +58,9 @@ public abstract class AbstractIntegrationTest {
 
 	@MockitoBean
 	QuestionImportService questionImportService;
+
+	@MockitoBean
+	CacheWarmupService cacheWarmupService;
 
 	@Autowired
 	protected JwtService jwtService;

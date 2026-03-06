@@ -14,8 +14,8 @@ import com.mathlearning.shared.model.SolveRequest
 import com.mathlearning.shared.model.SolveResponse
 import com.mathlearning.shared.model.Student
 import com.mathlearning.shared.model.UpdateMasteryRequest
-import com.mathlearning.shared.storage.saveToken
 import com.mathlearning.shared.storage.clearToken
+import com.mathlearning.shared.storage.saveToken
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*

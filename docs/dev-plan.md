@@ -211,7 +211,43 @@
 
 ---
 
+## Phase 7: 本地性能优化与稳定性加固 ✅ <small>(已完成)</small>
+
+> **目标**：在 Ollama 本地推理环境下，将平均响应时间降低 50%，并显著提升系统的容错能力。
+>
+> **实施说明：**
+> - `SemanticCacheService`：基于 pgvector 的语义缓存（相似度 > 0.98），命中时秒级返回；Caffeine 内存二级缓存避免重复 embedding + 向量检索
+> - `CacheWarmupService`：启动时自动加载最近 20 条 `solve_records` 到语义缓存，热门题目首次即命中
+> - `ResilienceConfig`：Resilience4j `Retry`（指数退避 2s→4s，最多 3 次）+ `CircuitBreaker`（50% 失败率阈值，60s 恢复期）
+> - `MathSolverOrchestrator.callLlm()` → `doCallLlm()`：内层执行 LLM 调用，外层 Retry + CircuitBreaker 装饰
+> - LLM 解析失败兜底：`parseResults()` 捕获 `LlmResponseParseException` 后返回格式化纯文本结果，保证用户至少能看到文字解答
+> - Ollama `keep-alive: 30m` 配置，减少模型反复释放与重载
+> - 多层缓存架构：L1 Redis 精确匹配 → L2 语义缓存（pgvector + Caffeine）→ L3 完整 LLM 管线
+
+### Task 7.1: 语义缓存 (Semantic Cache)
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 7.1 | 实现基于 Vector Store 的语义缓存：解题前先检索相似度 > 0.98 的历史记录 | 相同或极相似题目秒级返回，不触发 LLM |
+| 7.2 | 引入 Redis 或内存二级缓存，存储高频检索的 Embedding 结果 | 减少频繁调用数据库进行向量匹配的开销 |
+
+### Task 7.2: 离线预热与推理加速
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 7.3 | 应用启动预热：后台自动拉取最新 20 道 PSLE 题目并生成缓存 | 热门题库题目首次点击即命中缓存 |
+| 7.4 | 配置 Ollama 并发限制与模型 Keep-alive 时间，减少模型加载抖动 | 连续请求时模型不反复释放与重载 |
+
+### Task 7.3: LLM 韧性控制 (Resilience)
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 7.5 | 引入 Resilience4j 实现重试机制（指数退避）与熔断器 | LLM 偶发超时时自动重试，前端不卡死 |
+| 7.6 | 异常兜底方案：LLM 解析失败时，返回格式化后的纯文本解释而非 JSON 错误 | 保证用户至少能看到文字解答 |
+
+**Phase 7 交付物：** 极速响应的解题体验，缓存命中率目标 > 60%，系统稳定性大幅增强。
+
+---
+
 ## Phase 8: 核心能力扩展与启发式教学 (高优先级) 🚀
+... (此处保留之前修改的内容) ...
 
 > **目标**：从“给答案”转向“教方法”，并提升题目输入效率。
 

@@ -23,6 +23,9 @@ spring:
       base-url: http://localhost:11434
       chat:
         model: qwen3.5:2b
+        options:
+          # Keep model loaded in memory for 30 minutes to avoid reload latency
+          keep-alive: "30m"
       embedding:
         model: nomic-embed-text
     vectorstore:

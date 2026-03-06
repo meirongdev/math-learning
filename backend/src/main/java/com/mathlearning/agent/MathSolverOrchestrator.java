@@ -8,6 +8,9 @@ import com.mathlearning.exception.LlmTimeoutException;
 import com.mathlearning.model.SolveRequest;
 import com.mathlearning.model.SolveResult;
 import com.mathlearning.service.RagRetrievalService;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.retry.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -21,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * Orchestrates the multi-agent math solving pipeline.
@@ -44,6 +48,8 @@ public class MathSolverOrchestrator {
 	private final ChatClient chatClient;
 	private final RagRetrievalService ragRetrievalService;
 	private final ObjectMapper objectMapper;
+	private final Retry retry;
+	private final CircuitBreaker circuitBreaker;
 
 	private static final String PLANNER_SYSTEM_PROMPT = """
 			You are a Singapore primary math teacher (PSLE 2026 syllabus, CPA approach).
@@ -75,10 +81,13 @@ public class MathSolverOrchestrator {
 			""";
 
 	public MathSolverOrchestrator(ChatClient chatClient, RagRetrievalService ragRetrievalService,
-			ObjectMapper objectMapper, @Value("${app.llm.timeout-seconds:180}") int llmTimeoutSeconds) {
+			ObjectMapper objectMapper, Retry llmRetry, CircuitBreaker llmCircuitBreaker,
+			@Value("${app.llm.timeout-seconds:180}") int llmTimeoutSeconds) {
 		this.chatClient = chatClient;
 		this.ragRetrievalService = ragRetrievalService;
 		this.objectMapper = objectMapper;
+		this.retry = llmRetry;
+		this.circuitBreaker = llmCircuitBreaker;
 		this.llmTimeoutSeconds = llmTimeoutSeconds;
 	}
 
@@ -121,12 +130,25 @@ public class MathSolverOrchestrator {
 	}
 
 	/**
-	 * Calls the LLM synchronously with a 60-second timeout.
+	 * Calls the LLM with retry (exponential back-off) and circuit-breaker
+	 * protection.
 	 *
 	 * @throws LlmTimeoutException
-	 *             if the LLM does not respond within the timeout
+	 *             if the LLM does not respond within the timeout after all retries
 	 */
 	private String callLlm(String systemPrompt, String userMessage) {
+		Supplier<String> supplier = () -> doCallLlm(systemPrompt, userMessage);
+		Supplier<String> retryable = Retry.decorateSupplier(retry, supplier);
+		Supplier<String> resilient = CircuitBreaker.decorateSupplier(circuitBreaker, retryable);
+		try {
+			return resilient.get();
+		} catch (CallNotPermittedException e) {
+			throw new LlmTimeoutException(
+					"LLM service is temporarily unavailable (circuit breaker open). Please try again later.");
+		}
+	}
+
+	private String doCallLlm(String systemPrompt, String userMessage) {
 		var future = CompletableFuture.supplyAsync(() -> chatClient.prompt().system(systemPrompt).user(userMessage)
 				.options(OllamaChatOptions.builder().disableThinking().build()).call().content());
 		try {
@@ -145,8 +167,9 @@ public class MathSolverOrchestrator {
 	}
 
 	/**
-	 * Parses planner and content LLM responses using Jackson. Throws
-	 * {@link LlmResponseParseException} if either response is not valid JSON.
+	 * Parses planner and content LLM responses using Jackson. Falls back to a
+	 * plain-text result when JSON parsing fails so the user always receives a
+	 * readable answer.
 	 */
 	private SolveResult parseResults(String plannerResult, String contentResult) {
 		try {
@@ -169,10 +192,23 @@ public class MathSolverOrchestrator {
 			log.info("All agents completed successfully");
 			return new SolveResult(parentGuide, childScript, barModelJson, knowledgeTags);
 		} catch (LlmResponseParseException e) {
-			throw e;
+			log.warn("Failed to parse LLM response as JSON, returning plain-text fallback", e);
+			return createFallbackResult(plannerResult, contentResult);
 		} catch (Exception e) {
-			throw new LlmResponseParseException("Failed to parse LLM response: " + e.getMessage(), e);
+			log.warn("Unexpected error parsing LLM response, returning plain-text fallback", e);
+			return createFallbackResult(plannerResult, contentResult);
 		}
+	}
+
+	/**
+	 * Builds a best-effort {@link SolveResult} from raw LLM output when JSON
+	 * parsing fails.
+	 */
+	private SolveResult createFallbackResult(String plannerText, String contentText) {
+		String bestText = (contentText != null && !contentText.isBlank()) ? contentText : plannerText;
+		return new SolveResult(
+				"The AI provided an explanation but it couldn't be fully structured. Please review the text below.",
+				bestText, "{}", List.of());
 	}
 
 	/**
