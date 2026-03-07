@@ -54,7 +54,7 @@ spring:
     ollama:
       base-url: http://localhost:11434
       chat:
-        model: qwen3.5:2b          # Change to qwen3.5 for the full model
+        model: qwen3.5
       embedding:
         model: nomic-embed-text
     vectorstore:

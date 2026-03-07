@@ -208,6 +208,6 @@ Rationale:
 - If the Planner output (knowledge tags, difficulty, steps) becomes useful to show before the Content Agent finishes.
 
 **When to consider WebSocket:**
-- If interactive tutoring (follow-up questions, mid-stream interaction) is implemented in Phase 7.
+- If the product grows into real-time interactive tutoring beyond the current solve/request cycle.
 
 The `/api/v1/solve/stream` endpoint is kept in place (as a pseudo-SSE endpoint) so the streaming path exists and can be evolved into true SSE without changing the frontend-facing API contract.

@@ -36,7 +36,7 @@ public class SolveController {
 	 * Runs the full multi-agent pipeline with RAG and returns a structured JSON
 	 * result. Results are cached by question+grade for 24 hours.
 	 */
-	@PostMapping
+	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public SolveResult solve(@Valid @RequestBody SolveRequest request) {
 		return solveService.solve(request);
 	}

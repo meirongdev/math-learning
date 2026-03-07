@@ -416,6 +416,98 @@ class MathApiTest {
     }
 
     @Test
+    fun getMistakes_success_returns_filtered_results() = runTest {
+        var capturedUrl = ""
+        val api = mockApi { request ->
+            capturedUrl = request.url.toString()
+            respond(
+                content = """{"records":[{"id":"r1","questionText":"1/2+1/3","knowledgeTags":["frac.add_sub"],"rating":2}],"page":0,"size":20,"totalElements":1,"totalPages":1}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+
+        val result = api.getMistakes(studentId = "s1", tag = "frac.add_sub", page = 0, size = 20)
+
+        assertEquals(1, result.records.size)
+        assertEquals("r1", result.records[0].id)
+        assertTrue(capturedUrl.contains("studentId=s1"), "studentId filter expected")
+        assertTrue(capturedUrl.contains("tag=frac.add_sub"), "tag filter expected")
+    }
+
+    @Test
+    fun exportRecord_success_returns_preview_payload() = runTest {
+        val api = mockApi { _ ->
+            respond(
+                content = """{"recordId":"r1","suggestedFileName":"math-learning-r1.pdf","mimeType":"application/pdf","printableHtml":"<html></html>","markdownContent":"# Export","generatedAt":"2026-03-07T00:00:00Z"}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+
+        val preview = api.exportRecord("r1")
+
+        assertEquals("r1", preview.recordId)
+        assertEquals("application/pdf", preview.mimeType)
+        assertTrue(preview.suggestedFileName.endsWith(".pdf"))
+    }
+
+    @Test
+    fun getStudentAchievements_success_returns_badges() = runTest {
+        val api = mockApi { _ ->
+            respond(
+                content = """[{"code":"first-solve","title":"First Spark","description":"Solve one question","icon":"Spark","unlocked":true,"currentValue":1,"targetValue":1}]""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+
+        val achievements = api.getStudentAchievements("s1")
+
+        assertEquals(1, achievements.size)
+        assertEquals("first-solve", achievements[0].code)
+        assertTrue(achievements[0].unlocked)
+    }
+
+    @Test
+    fun getLearningPath_success_returns_recommendation() = runTest {
+        val api = mockApi { _ ->
+            respond(
+                content = """
+                    {
+                      "summary": "Focus on fractions",
+                      "reason": "This is the weakest area",
+                      "focusNode": {
+                        "code": "frac.add_sub",
+                        "nameEn": "Adding & Subtracting Fractions",
+                        "nameZh": "分数加减",
+                        "masteryLevel": "FAMILIAR",
+                        "gradeStart": 3
+                      },
+                      "questions": [
+                        {
+                          "id": "q1",
+                          "questionText": "What is 3/5 + 1/3?",
+                          "grade": 4,
+                          "difficulty": "medium",
+                          "answerHint": "Find the LCD"
+                        }
+                      ]
+                    }
+                """.trimIndent(),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+
+        val path = api.getLearningPath("s1")
+
+        assertEquals("frac.add_sub", path.focusNode.code)
+        assertEquals(1, path.questions.size)
+        assertEquals("What is 3/5 + 1/3?", path.questions[0].questionText)
+    }
+
+    @Test
     fun rateRecord_success_returns_rating_response() = runTest {
         val api = mockApi { _ ->
             respond(

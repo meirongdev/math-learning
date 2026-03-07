@@ -27,7 +27,7 @@ This project is a runnable AI tutoring app under active iteration. Use it to lea
 |:-----------|:--------|:----------------|
 | Spring AI | 2.0.0-M2 | Unified LLM abstraction (`ChatClient`, `VectorStore`) |
 | Ollama | latest | Local LLM runtime (dev environment) |
-| qwen3.5:2b | — | Chat/reasoning model for agent pipeline |
+| qwen3.5 | — | Chat/reasoning model for agent pipeline |
 | nomic-embed-text | — | Embedding model, 768-dim vectors |
 | DeepSeek-R1 | — | Cloud LLM for production (OpenAI-compatible API) |
 
@@ -60,8 +60,8 @@ This project is a runnable AI tutoring app under active iteration. Use it to lea
 |:-----------|:--------|:----------------|
 | Docker | recent | Container runtime |
 | Docker Compose | recent | Local infra orchestration (PostgreSQL + Redis) |
-| Helm | 3.x | Kubernetes package manager (Phase 9) |
-| ArgoCD | — | GitOps continuous deployment (Phase 9) |
+| Helm | 3.x | Kubernetes package manager (Phase 11) |
+| ArgoCD | — | GitOps continuous deployment (Phase 11) |
 | GitHub Actions | — | CI pipeline (Phase 8) |
 
 ---
@@ -328,4 +328,5 @@ These exercises extend the project and deepen understanding of each technology a
 | Add a second cloud LLM profile | Spring AI provider abstraction |
 | Complete student delete/update APIs | Spring Data JPA, REST API design |
 | Add a knowledge graph page to frontend | Compose state management, API integration |
-| Implement OCR input (Phase 8, optional) | Multimodal LLM, file upload |
+| Study the existing OCR implementation (Phase 8 shipped) | Browser OCR, Wasm interop, upload UX |
+| Extend Phase 10 achievements or adaptive path rules | product metrics, domain modeling, recommendation logic |

@@ -10,7 +10,7 @@ The `dev` profile is pre-configured for Ollama. This is the recommended setup fo
 
 ```bash
 # Prerequisites: Ollama installed and models pulled
-ollama pull qwen3.5:2b        # chat model (~3.8 GB)
+ollama pull qwen3.5           # chat model
 ollama pull nomic-embed-text  # embedding model (~274 MB)
 
 # Start Ollama server
@@ -29,7 +29,7 @@ spring:
   ai:
     ollama:
       chat:
-        model: qwen3.5   # change from qwen3.5:2b to full model
+        model: qwen3.5   # default local chat model
 ```
 
 Then pull the model if not already downloaded:
@@ -42,8 +42,8 @@ Available tested models:
 
 | Model | Size | Speed (local) | Notes |
 |-------|------|---------------|-------|
-| `qwen3.5:2b` | 3.8 GB | ~16s | Default, good balance |
-| `qwen3.5` | 6.6 GB | ~25s | Better quality |
+| `qwen3.5` | 6.6 GB | ~25s | Current dev default |
+| `qwen3.5:2b` | 3.8 GB | ~16s | Faster and lighter alternative |
 
 > Thinking mode is always disabled regardless of model. See [troubleshooting](../reference/troubleshooting.md) for why.
 
@@ -114,7 +114,7 @@ Spring AI supports any OpenAI-compatible API endpoint. To add another provider (
 
 | Provider | Model | Latency | Cost | Notes |
 |----------|-------|---------|------|-------|
-| Ollama | qwen3.5:2b | ~16s | Free | Local, no internet required |
-| Ollama | qwen3.5 | ~25s | Free | Better output quality |
+| Ollama | qwen3.5 | ~25s | Free | Default local setup |
+| Ollama | qwen3.5:2b | ~16s | Free | Faster/lower-memory option |
 | DeepSeek | deepseek-reasoner | ~5–10s | ~$0.01/solve | Production recommended |
 | DeepSeek | deepseek-chat | ~3–5s | <$0.01/solve | Faster, less reasoning depth |

@@ -6,6 +6,7 @@ import com.mathlearning.service.KnowledgeService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,13 +45,13 @@ public class KnowledgeController {
 			@NotBlank @Pattern(regexp = "UNKNOWN|FAMILIAR|MASTERED", message = "must be UNKNOWN, FAMILIAR, or MASTERED") String masteryLevel) {
 	}
 
-	@GetMapping("/graph")
+	@GetMapping(value = "/graph", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<KnowledgeNodeResponse> getKnowledgeGraph() {
 		List<KnowledgeNode> nodes = knowledgeNodeRepository.findAllByOrderBySortOrderAsc();
 		return buildTree(nodes);
 	}
 
-	@GetMapping("/{studentId}")
+	@GetMapping(value = "/{studentId}", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<KnowledgeResponse> getKnowledgeProgress(@PathVariable UUID studentId) {
 		return knowledgeService.getProgress(studentId).stream()
 				.map(kp -> new KnowledgeResponse(kp.getId(), kp.getKnowledgeCode(), kp.getAttemptCount(),
@@ -59,12 +60,12 @@ public class KnowledgeController {
 				.toList();
 	}
 
-	@GetMapping("/{studentId}/progress")
+	@GetMapping(value = "/{studentId}/progress", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<KnowledgeResponse> getStudentProgress(@PathVariable UUID studentId) {
 		return getKnowledgeProgress(studentId);
 	}
 
-	@PutMapping("/{studentId}/progress/{nodeCode}")
+	@PutMapping(value = "/{studentId}/progress/{nodeCode}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Void> updateMastery(@PathVariable UUID studentId, @PathVariable String nodeCode,
 			@Valid @RequestBody UpdateMasteryRequest request) {
 		knowledgeService.updateMastery(studentId, nodeCode, request.masteryLevel());

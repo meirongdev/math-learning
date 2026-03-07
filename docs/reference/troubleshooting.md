@@ -12,7 +12,7 @@
 **验证方法**: 直接 curl Ollama 确认模型正常返回内容：
 ```bash
 curl -s http://localhost:11434/api/chat -d '{
-  "model": "qwen3.5:2b",
+    "model": "qwen3.5",
   "messages": [{"role": "user", "content": "1+1=?"}],
   "stream": false, "think": false
 }'

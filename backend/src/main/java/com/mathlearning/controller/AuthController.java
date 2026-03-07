@@ -5,6 +5,7 @@ import com.mathlearning.model.entity.User;
 import com.mathlearning.repository.UserRepository;
 import com.mathlearning.service.JwtService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +35,7 @@ public class AuthController {
 	public record LoginRequest(String email, String password) {
 	}
 
-	@PostMapping("/register")
+	@PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
 		if (userRepository.existsByEmail(request.email())) {
 			return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -48,7 +49,7 @@ public class AuthController {
 				.body(Map.of("message", "Registration successful", "userId", user.getId()));
 	}
 
-	@PostMapping("/login")
+	@PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 		return userRepository.findByEmail(request.email())
 				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))

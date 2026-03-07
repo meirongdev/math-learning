@@ -112,6 +112,34 @@ data class PagedRecordResponse(
 )
 
 @Serializable
+data class MistakeRecordResponse(
+    val id: String,
+    val questionText: String,
+    val knowledgeTags: List<String>? = null,
+    val rating: Int? = null,
+    val createdAt: String = "",
+)
+
+@Serializable
+data class MistakePageResponse(
+    val records: List<MistakeRecordResponse>,
+    val page: Int = 0,
+    val size: Int = 20,
+    val totalElements: Long = 0,
+    val totalPages: Int = 0,
+)
+
+@Serializable
+data class RecordExportResponse(
+    val recordId: String,
+    val suggestedFileName: String,
+    val mimeType: String,
+    val printableHtml: String,
+    val markdownContent: String,
+    val generatedAt: String,
+)
+
+@Serializable
 data class RatingRequest(
     val rating: Int,
 )
@@ -130,4 +158,33 @@ data class AssessmentQuestionResponse(
     val grade: Int,
     val difficulty: String,
     val answerHint: String? = null,
+)
+
+@Serializable
+data class AchievementResponse(
+    val code: String,
+    val title: String,
+    val description: String,
+    val icon: String,
+    val unlocked: Boolean,
+    val currentValue: Int,
+    val targetValue: Int,
+)
+
+@Serializable
+data class LearningNodeSummary(
+    val code: String,
+    val nameEn: String,
+    val nameZh: String,
+    val masteryLevel: String,
+    val gradeStart: Int,
+)
+
+@Serializable
+data class LearningPathResponse(
+    val summary: String,
+    val reason: String,
+    val focusNode: LearningNodeSummary,
+    val prerequisiteNode: LearningNodeSummary? = null,
+    val questions: List<AssessmentQuestionResponse> = emptyList(),
 )

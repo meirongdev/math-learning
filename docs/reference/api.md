@@ -105,7 +105,7 @@ Response `200 OK`:
   "parentGuide": "This question covers P3 fractions...",
   "childScript": "Let's share some sweets...",
   "barModelJson": "{\"title\":\"Sweets\",\"bars\":[...]}",
-  "knowledgeTags": ["basic_fractions", "whole_numbers"]
+  "knowledgeTags": ["frac.add_sub", "whole_numbers"]
 }
 ```
 
@@ -132,7 +132,7 @@ data: {"type":"child_script","content":"..."}
 
 data: {"type":"bar_model","content":"{...}"}
 
-data: {"type":"knowledge_tags","content":"basic_fractions, whole_numbers"}
+data: {"type":"knowledge_tags","content":"frac.add_sub, whole_numbers"}
 
 data: [DONE]
 ```
@@ -194,6 +194,60 @@ Response `204 No Content` — deleted successfully.
 
 Error `404 Not Found` — student not found or not owned by the caller.
 
+### Get Student Achievements
+
+`GET /api/v1/students/{id}/achievements`
+
+Returns the computed Phase 10 badge wall for a student owned by the authenticated user.
+
+Response `200 OK`:
+
+```json
+[
+  {
+    "code": "first-solve",
+    "title": "First Spark",
+    "description": "Solve the first question together.",
+    "icon": "Spark",
+    "unlocked": true,
+    "currentValue": 1,
+    "targetValue": 1
+  }
+]
+```
+
+### Get Adaptive Learning Path
+
+`GET /api/v1/students/{id}/learning-path`
+
+Returns the current focus node, optional direct prerequisite, and recommended challenge questions.
+
+Response `200 OK`:
+
+```json
+{
+  "summary": "Next best challenge: strengthen 'Adding & Subtracting Fractions' with 1 curated question.",
+  "reason": "The learner needs one more focused challenge in 'Adding & Subtracting Fractions'. This recommendation is based on the weakest non-mastered node with recent activity or unmet mastery.",
+  "focusNode": {
+    "code": "frac.add_sub",
+    "nameEn": "Adding & Subtracting Fractions",
+    "nameZh": "分数加减",
+    "masteryLevel": "FAMILIAR",
+    "gradeStart": 3
+  },
+  "prerequisiteNode": null,
+  "questions": [
+    {
+      "id": "a0000004-0000-0000-0000-000000000002",
+      "questionText": "What is 3/5 + 1/3? Express as a fraction in simplest form.",
+      "grade": 4,
+      "difficulty": "medium",
+      "answerHint": "LCD=15: 9/15 + 5/15 = 14/15"
+    }
+  ]
+}
+```
+
 ---
 
 ## Records
@@ -201,6 +255,8 @@ Error `404 Not Found` — student not found or not owned by the caller.
 ### Get Solve History
 
 `GET /api/v1/records/{studentId}?page=0&size=20`
+
+Returns records owned by the authenticated parent for the selected student.
 
 Response `200 OK`:
 
@@ -213,7 +269,7 @@ Response `200 OK`:
       "parentGuide": "This covers P3 fractions...",
       "childScript": "Let's share some sweets...",
       "barModelJson": "{...}",
-      "knowledgeTags": ["basic_fractions"],
+      "knowledgeTags": ["frac.add_sub"],
       "rating": 4,
       "createdAt": "2026-03-06T10:00:00Z"
     }
@@ -259,6 +315,51 @@ Behavior:
 
 Error `404 Not Found` — record not found.
 
+### Get Mistake Ledger (Phase 9 skeleton)
+
+`GET /api/v1/records/mistakes?studentId={optional}&tag={optional}&from={optional}&to={optional}&page=0&size=20`
+
+Returns low-rated (`rating <= 2`) records owned by the authenticated parent.
+
+Response `200 OK`:
+
+```json
+{
+  "records": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440100",
+      "questionText": "What is 1/2 + 1/3?",
+      "knowledgeTags": ["frac.add_sub"],
+      "rating": 2,
+      "createdAt": "2026-03-07T01:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### Export Solve Record (Phase 9 skeleton)
+
+`GET /api/v1/records/{recordId}/export`
+
+Returns printable/export-ready payload for a single record. Current implementation provides both printable HTML and markdown content; UI can use browser print as PDF.
+
+Response `200 OK`:
+
+```json
+{
+  "recordId": "550e8400-e29b-41d4-a716-446655440100",
+  "suggestedFileName": "math-learning-Mia-550e8400-e29b-41d4-a716-446655440100.pdf",
+  "mimeType": "application/pdf",
+  "printableHtml": "<!doctype html>...",
+  "markdownContent": "# SG Math Tutor - Practice Export\n...",
+  "generatedAt": "2026-03-07T01:10:00Z"
+}
+```
+
 ---
 
 ## Knowledge
@@ -273,7 +374,7 @@ Response `200 OK`:
 [
   {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "knowledgeCode": "basic_fractions",
+    "knowledgeCode": "frac.add_sub",
     "attemptCount": 3,
     "correctCount": 0,
     "masteryScore": "0.00",
@@ -376,12 +477,12 @@ Response `200 OK`:
 
 ## Error Format
 
-All application exceptions use a unified format:
+Business and validation errors follow the global error envelope:
 
 ```json
 {
   "code": "VALIDATION_ERROR",
-  "message": "question must not be blank"
+  "message": "must not be blank"
 }
 ```
 

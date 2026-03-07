@@ -3,6 +3,7 @@ package com.mathlearning.web
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +11,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowRight
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
@@ -43,7 +48,7 @@ import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
-enum class Screen { Solve, Knowledge, History }
+enum class Screen { Solve, Knowledge, Growth, Mistakes, History }
 
 @Serializable
 private data class OcrParseResult(
@@ -92,6 +97,7 @@ fun MainApp(api: MathApi, onLogout: () -> Unit) {
     var currentScreen by remember { mutableStateOf(Screen.Solve) }
     var students by remember { mutableStateOf<List<Student>>(emptyList()) }
     var selectedStudent by remember { mutableStateOf<Student?>(null) }
+    var pendingChallenge by remember { mutableStateOf<AssessmentQuestionResponse?>(null) }
 
     LaunchedEffect(Unit) {
         try {
@@ -116,6 +122,8 @@ fun MainApp(api: MathApi, onLogout: () -> Unit) {
                 api = api,
                 students = students,
                 selectedStudent = selectedStudent,
+                pendingChallenge = pendingChallenge,
+                onPendingChallengeConsumed = { pendingChallenge = null },
                 onStudentSelected = { selectedStudent = it },
                 onStudentsChanged = { newList ->
                     students = newList
@@ -126,6 +134,20 @@ fun MainApp(api: MathApi, onLogout: () -> Unit) {
                 onLogout = onLogout,
             )
             Screen.Knowledge -> KnowledgeScreen(
+                api = api,
+                selectedStudent = selectedStudent,
+                onLogout = onLogout,
+            )
+            Screen.Growth -> GrowthScreen(
+                api = api,
+                selectedStudent = selectedStudent,
+                onStartChallenge = { challenge ->
+                    pendingChallenge = challenge
+                    currentScreen = Screen.Solve
+                },
+                onLogout = onLogout,
+            )
+            Screen.Mistakes -> MistakesScreen(
                 api = api,
                 selectedStudent = selectedStudent,
                 onLogout = onLogout,
@@ -169,6 +191,8 @@ fun TopBar(currentScreen: Screen, onScreenChange: (Screen) -> Unit, onLogout: ()
                     val label = when (screen) {
                         Screen.Solve -> "Solve"
                         Screen.Knowledge -> "Knowledge"
+                        Screen.Growth -> "Growth"
+                        Screen.Mistakes -> "Mistakes"
                         Screen.History -> "History"
                     }
                     val selected = currentScreen == screen
@@ -496,6 +520,8 @@ fun SolveScreen(
     api: MathApi,
     students: List<Student>,
     selectedStudent: Student?,
+    pendingChallenge: AssessmentQuestionResponse?,
+    onPendingChallengeConsumed: () -> Unit,
     onStudentSelected: (Student?) -> Unit,
     onStudentsChanged: (List<Student>) -> Unit,
     onLogout: () -> Unit,
@@ -541,6 +567,15 @@ fun SolveScreen(
                 elapsedSeconds++
             }
         }
+    }
+
+    LaunchedEffect(pendingChallenge?.id) {
+        val challenge = pendingChallenge ?: return@LaunchedEffect
+        question = challenge.questionText
+        selectedGrade = "P${challenge.grade}"
+        ocrSource = null
+        ocrStatus = "Adaptive challenge loaded from the knowledge page."
+        onPendingChallengeConsumed()
     }
 
     if (showManageDialog) {
@@ -727,12 +762,23 @@ fun SolveScreen(
                             selected = selectedMode == mode,
                             onClick = { selectedMode = mode },
                             label = {
-                                Text(
-                                    when (mode) {
-                                        ExplanationMode.ORIGINAL -> "\uD83D\uDCDD Direct"
-                                        ExplanationMode.SOCRATIC -> "\uD83E\uDD14 Socratic"
-                                    },
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = when (mode) {
+                                            ExplanationMode.ORIGINAL -> Icons.Default.Description
+                                            ExplanationMode.SOCRATIC -> Icons.Default.Lightbulb
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        when (mode) {
+                                            ExplanationMode.ORIGINAL -> "Direct"
+                                            ExplanationMode.SOCRATIC -> "Socratic"
+                                        },
+                                    )
+                                }
                             },
                         )
                     }
@@ -991,20 +1037,28 @@ fun RatingBadge(rating: Int, compact: Boolean = false) {
 // ============================================================================
 
 @Composable
-fun KnowledgeScreen(api: MathApi, selectedStudent: Student?, onLogout: () -> Unit) {
+fun KnowledgeScreen(
+    api: MathApi,
+    selectedStudent: Student?,
+    onLogout: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     var graph by remember { mutableStateOf<List<KnowledgeNodeResponse>>(emptyList()) }
     var progress by remember { mutableStateOf<Map<String, String>>(emptyMap()) } // code -> masteryLevel
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var starViewEnabled by remember { mutableStateOf(true) }
 
     LaunchedEffect(selectedStudent) {
         isLoading = true
+        errorMessage = null
         try {
             graph = api.getKnowledgeGraph()
             if (selectedStudent != null) {
                 val progressList = api.getKnowledgeProgress(selectedStudent.id)
                 progress = progressList.associate { it.knowledgeCode to it.masteryLevel }
+            } else {
+                progress = emptyMap()
             }
         } catch (e: UnauthorizedException) {
             onLogout()
@@ -1031,32 +1085,350 @@ fun KnowledgeScreen(api: MathApi, selectedStudent: Student?, onLogout: () -> Uni
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (selectedStudent == null) {
+            Text(
+                "Choose a student to view the skill map. Growth and adaptive challenges are now on the Growth page.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
         if (isLoading) {
             CircularProgressIndicator()
         } else if (errorMessage != null) {
             Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
         } else {
+            if (selectedStudent != null && graph.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = starViewEnabled,
+                        onClick = { starViewEnabled = true },
+                        label = { Text("Star Map") },
+                    )
+                    FilterChip(
+                        selected = !starViewEnabled,
+                        onClick = { starViewEnabled = false },
+                        label = { Text("Tree View") },
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            val leafNodes = remember(graph) { flattenLeafNodes(graph) }
+            if (selectedStudent != null && starViewEnabled && leafNodes.isNotEmpty()) {
+                SkillTreeStarMap(leafNodes = leafNodes, progress = progress)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             graph.forEach { node ->
-                KnowledgeNodeTree(
-                    node = node,
-                    progress = progress,
-                    level = 0,
-                    selectedStudent = selectedStudent,
-                    onUpdateMastery = { code, level ->
-                        if (selectedStudent != null) {
-                            scope.launch {
-                                try {
-                                    api.updateMastery(selectedStudent.id, code, level)
-                                    progress = progress + (code to level)
-                                } catch (_: Exception) {}
+                if (selectedStudent == null || !starViewEnabled) {
+                    KnowledgeNodeTree(
+                        node = node,
+                        progress = progress,
+                        level = 0,
+                        selectedStudent = selectedStudent,
+                        onUpdateMastery = { code, level ->
+                            if (selectedStudent != null) {
+                                scope.launch {
+                                    try {
+                                        api.updateMastery(selectedStudent.id, code, level)
+                                        progress = progress + (code to level)
+                                    } catch (_: Exception) {}
+                                }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun GrowthScreen(
+    api: MathApi,
+    selectedStudent: Student?,
+    onStartChallenge: (AssessmentQuestionResponse) -> Unit,
+    onLogout: () -> Unit,
+) {
+    var achievements by remember { mutableStateOf<List<AchievementResponse>>(emptyList()) }
+    var learningPath by remember { mutableStateOf<LearningPathResponse?>(null) }
+    var graph by remember { mutableStateOf<List<KnowledgeNodeResponse>>(emptyList()) }
+    var progress by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedStudent) {
+        isLoading = true
+        errorMessage = null
+        try {
+            if (selectedStudent == null) {
+                achievements = emptyList()
+                learningPath = null
+                graph = emptyList()
+                progress = emptyMap()
+            } else {
+                achievements = api.getStudentAchievements(selectedStudent.id)
+                learningPath = api.getLearningPath(selectedStudent.id)
+                graph = api.getKnowledgeGraph()
+                progress = api.getKnowledgeProgress(selectedStudent.id).associate { it.knowledgeCode to it.masteryLevel }
+            }
+        } catch (e: UnauthorizedException) {
+            onLogout()
+        } catch (e: Exception) {
+            errorMessage = e.message
+        } finally {
+            isLoading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Growth Hub", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Achievements, adaptive challenges, and progress snapshots are separated here to keep the Knowledge page focused.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 700.dp),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (selectedStudent == null) {
+            Text("Choose a student from Solve or History to unlock growth insights.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (isLoading) {
+            CircularProgressIndicator()
+        } else if (errorMessage != null) {
+            Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+        } else {
+            val leafNodes = remember(graph) { flattenLeafNodes(graph) }
+            val masteredCount = leafNodes.count { progress[it.code] == "MASTERED" }
+            val familiarCount = leafNodes.count { progress[it.code] == "FAMILIAR" }
+            val unknownCount = (leafNodes.size - masteredCount - familiarCount).coerceAtLeast(0)
+
+            ProgressSnapshotCard(masteredCount, familiarCount, unknownCount, achievements)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AchievementWall(achievements)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            learningPath?.let { path ->
+                AdaptiveChallengeCard(path, onStartChallenge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+private fun flattenLeafNodes(nodes: List<KnowledgeNodeResponse>): List<KnowledgeNodeResponse> =
+    nodes.flatMap { node -> if (node.children.isEmpty()) listOf(node) else flattenLeafNodes(node.children) }
+
+@Composable
+fun ProgressSnapshotCard(
+    masteredCount: Int,
+    familiarCount: Int,
+    unknownCount: Int,
+    achievements: List<AchievementResponse>,
+) {
+    val unlockedAchievements = achievements.count { it.unlocked }
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF6F4EC)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Learning Snapshot", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SnapshotPill("Mastered", masteredCount, Color(0xFF2E7D32))
+                SnapshotPill("Growing", familiarCount, Color(0xFFF9A825))
+                SnapshotPill("Next Up", unknownCount, Color(0xFF546E7A))
+                SnapshotPill("Badges", unlockedAchievements, Color(0xFF1565C0))
+            }
+        }
+    }
+}
+
+@Composable
+fun SnapshotPill(label: String, value: Int, color: Color) {
+    Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+        Text(
+            "$label $value",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = color,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+fun AchievementWall(achievements: List<AchievementResponse>) {
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF2)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Badge Wall", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Progress through practice streaks, mastery wins, and parent feedback loops.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                achievements.forEach { badge ->
+                    val badgeColor = if (badge.unlocked) Color(0xFFCD9B1D) else MaterialTheme.colorScheme.outline
+                    Surface(
+                        color = if (badge.unlocked) Color(0xFFFFF4CC) else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(badge.title, fontWeight = FontWeight.SemiBold, color = badgeColor)
+                                Text(
+                                    badge.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                "${badge.currentValue}/${badge.targetValue}",
+                                color = badgeColor,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdaptiveChallengeCard(path: LearningPathResponse, onStartChallenge: (AssessmentQuestionResponse) -> Unit) {
+    val prerequisiteNode = path.prerequisiteNode
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF4FF)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Adaptive Challenge Path", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(path.summary, fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(path.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(color = Color.White.copy(alpha = 0.75f), shape = RoundedCornerShape(12.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Focus Node", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text("${path.focusNode.nameEn} · ${path.focusNode.nameZh}")
+                    Text(
+                        "Current mastery: ${path.focusNode.masteryLevel}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (prerequisiteNode != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Prerequisite to reinforce", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text("${prerequisiteNode.nameEn} · ${prerequisiteNode.nameZh}")
+                    }
+                }
+            }
+            if (path.questions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                path.questions.forEachIndexed { index, question ->
+                    OutlinedCard(modifier = Modifier.fillMaxWidth().padding(bottom = if (index == path.questions.lastIndex) 0.dp else 8.dp)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(question.questionText, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "P${question.grade} · ${question.difficulty}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            question.answerHint?.let {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Hint: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(onClick = { onStartChallenge(question) }) {
+                                Text("Start This Challenge")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SkillTreeStarMap(leafNodes: List<KnowledgeNodeResponse>, progress: Map<String, String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1B2A)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Skill Tree Star Map", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Each skill lights up as mastery grows. Use this to spot dim regions before they become bottlenecks.",
+                color = Color(0xFFB7C5D9),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            (1..6).forEach { grade ->
+                val nodesForGrade = leafNodes.filter { it.gradeStart == grade }
+                if (nodesForGrade.isNotEmpty()) {
+                    Text("P$grade", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        nodesForGrade.forEach { node ->
+                            val mastery = progress[node.code] ?: "UNKNOWN"
+                            val starColor = when (mastery) {
+                                "MASTERED" -> Color(0xFFFFD54F)
+                                "FAMILIAR" -> Color(0xFF81D4FA)
+                                else -> Color(0xFF455A64)
+                            }
+                            Surface(
+                                color = starColor.copy(alpha = if (mastery == "UNKNOWN") 0.18f else 0.28f),
+                                border = BorderStroke(1.dp, starColor.copy(alpha = 0.7f)),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp).width(156.dp)) {
+                                    Text(node.nameEn, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(node.nameZh, color = Color(0xFFB7C5D9), style = MaterialTheme.typography.bodySmall)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(mastery, color = starColor, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
     }
 }
 
@@ -1092,7 +1464,11 @@ fun KnowledgeNodeTree(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (hasChildren) {
-                    Text(if (expanded) "\u25BC " else "\u25B6 ", fontSize = 12.sp)
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ArrowDropDown else Icons.Default.ArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
                 } else {
                     Spacer(modifier = Modifier.width(16.dp))
                 }
@@ -1150,6 +1526,147 @@ fun MasteryBadge(mastery: String, onCycle: (String) -> Unit) {
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
         )
+    }
+}
+
+// ============================================================================
+// Mistakes Screen (Phase 9 skeleton)
+// ============================================================================
+
+@Composable
+fun MistakesScreen(api: MathApi, selectedStudent: Student?, onLogout: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var tagFilter by remember { mutableStateOf("") }
+    var records by remember { mutableStateOf<List<MistakeRecordResponse>>(emptyList()) }
+    var exportPreview by remember { mutableStateOf<RecordExportResponse?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun refreshMistakes() {
+        isLoading = true
+        errorMessage = null
+        scope.launch {
+            try {
+                val page = api.getMistakes(
+                    studentId = selectedStudent?.id,
+                    tag = tagFilter.trim().ifBlank { null },
+                    page = 0,
+                    size = 30,
+                )
+                records = page.records
+            } catch (e: UnauthorizedException) {
+                onLogout()
+            } catch (e: Exception) {
+                errorMessage = e.message
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(selectedStudent?.id) {
+        refreshMistakes()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Mistake Ledger", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "This page focuses only on low-rated attempts and printable export data.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 700.dp),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(modifier = Modifier.fillMaxWidth().widthIn(max = 700.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                OutlinedTextField(
+                    value = tagFilter,
+                    onValueChange = { tagFilter = it },
+                    label = { Text("Filter by tag (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { refreshMistakes() }, enabled = !isLoading) {
+                    Text("Refresh Mistakes")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        when {
+            isLoading -> CircularProgressIndicator()
+            errorMessage != null -> Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+            records.isEmpty() -> Text("No low-rated records found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> {
+                records.forEach { record ->
+                    Card(modifier = Modifier.fillMaxWidth().widthIn(max = 700.dp).padding(vertical = 4.dp)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(record.questionText, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Rating: ${record.rating ?: "N/A"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            val tags = record.knowledgeTags
+                            if (!tags.isNullOrEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    "Tags: ${tags.joinToString(", ")}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        exportPreview = api.exportRecord(record.id)
+                                    } catch (e: UnauthorizedException) {
+                                        onLogout()
+                                    } catch (e: Exception) {
+                                        errorMessage = e.message
+                                    }
+                                }
+                            }) {
+                                Text("Preview Export")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        exportPreview?.let { preview ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(modifier = Modifier.fillMaxWidth().widthIn(max = 700.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Export Preview", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "${preview.suggestedFileName} (${preview.mimeType})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        preview.markdownContent.take(800),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -1354,6 +1871,15 @@ fun HistoryScreen(
 
 @Composable
 fun ResultSection(title: String, content: String, containerColor: Color, contentColor: Color) {
+    // Basic HTML tag stripping and newline preservation
+    val cleanContent = remember(content) {
+        content
+            .replace(Regex("<br\\s*/?>"), "\n") // Convert <br> to newlines
+            .replace(Regex("<p>"), "")           // Remove <p> (usually followed by content)
+            .replace(Regex("</p>"), "\n\n")      // Convert </p> to double newlines
+            .replace(Regex("<[^>]*>"), "")       // Strip any remaining HTML tags
+            .trim()
+    }
     Card(
         modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
@@ -1362,7 +1888,7 @@ fun ResultSection(title: String, content: String, containerColor: Color, content
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = contentColor)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(content, style = MaterialTheme.typography.bodyMedium, color = contentColor)
+            Text(cleanContent, style = MaterialTheme.typography.bodyMedium, color = contentColor)
         }
     }
 }

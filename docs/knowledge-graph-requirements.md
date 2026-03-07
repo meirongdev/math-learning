@@ -270,5 +270,5 @@ CREATE TABLE assessment_question_tags (
 - `knowledge_nodes` 表（63 节点）和 `assessment_questions` 表（68 题）已通过 Flyway V2/V3 迁移创建并填充种子数据。
 - `knowledge_progress.mastery_level` 和 `solve_records.rating` 列已添加。
 - 所有 API 端点已上线：`GET /api/v1/knowledge/graph`、`GET /api/v1/knowledge/{studentId}/progress`、`PUT /api/v1/knowledge/{studentId}/progress/{nodeCode}`、`GET /api/v1/questions`、`PATCH /api/v1/records/{recordId}/rating`。
-- 前端已实现三 Tab 导航（Solve / Knowledge / History）、知识图谱树形页、历史记录页、星级评分组件。
+- 前端已实现分离式导航（Solve / Knowledge / Growth / Mistakes / History）、知识图谱树形页、历史记录页、错题本页、星级评分组件。
 - 详细 API 文档见 `docs/reference/api.md`。

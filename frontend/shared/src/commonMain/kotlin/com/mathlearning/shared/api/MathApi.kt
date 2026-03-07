@@ -1,14 +1,18 @@
 package com.mathlearning.shared.api
 
 import com.mathlearning.shared.model.AssessmentQuestionResponse
+import com.mathlearning.shared.model.AchievementResponse
 import com.mathlearning.shared.model.CreateStudentRequest
 import com.mathlearning.shared.model.KnowledgeNodeResponse
 import com.mathlearning.shared.model.KnowledgeProgressResponse
+import com.mathlearning.shared.model.LearningPathResponse
 import com.mathlearning.shared.model.LoginRequest
 import com.mathlearning.shared.model.LoginResponse
+import com.mathlearning.shared.model.MistakePageResponse
 import com.mathlearning.shared.model.PagedRecordResponse
 import com.mathlearning.shared.model.RatingRequest
 import com.mathlearning.shared.model.RatingResponse
+import com.mathlearning.shared.model.RecordExportResponse
 import com.mathlearning.shared.model.RegisterRequest
 import com.mathlearning.shared.model.SolveRequest
 import com.mathlearning.shared.model.SolveResponse
@@ -177,6 +181,39 @@ class MathApi(
         return json.decodeFromString<RatingResponse>(response.bodyAsText())
     }
 
+    suspend fun getMistakes(
+        studentId: String? = null,
+        tag: String? = null,
+        from: String? = null,
+        to: String? = null,
+        page: Int = 0,
+        size: Int = 20,
+    ): MistakePageResponse {
+        val response: HttpResponse = client.get("$baseUrl/api/v1/records/mistakes") {
+            authHeader()
+            studentId?.let { parameter("studentId", it) }
+            tag?.let { parameter("tag", it) }
+            from?.let { parameter("from", it) }
+            to?.let { parameter("to", it) }
+            parameter("page", page)
+            parameter("size", size)
+        }
+        if (!response.status.isSuccess()) {
+            throw RuntimeException("Failed to get mistakes: ${response.status}")
+        }
+        return json.decodeFromString<MistakePageResponse>(response.bodyAsText())
+    }
+
+    suspend fun exportRecord(recordId: String): RecordExportResponse {
+        val response: HttpResponse = client.get("$baseUrl/api/v1/records/$recordId/export") {
+            authHeader()
+        }
+        if (!response.status.isSuccess()) {
+            throw RuntimeException("Failed to export record: ${response.status}")
+        }
+        return json.decodeFromString<RecordExportResponse>(response.bodyAsText())
+    }
+
     // Assessment questions
     suspend fun getAssessmentQuestions(
         tag: String? = null,
@@ -193,5 +230,25 @@ class MathApi(
             throw RuntimeException("Failed to get questions: ${response.status}")
         }
         return json.decodeFromString<List<AssessmentQuestionResponse>>(response.bodyAsText())
+    }
+
+    suspend fun getStudentAchievements(studentId: String): List<AchievementResponse> {
+        val response: HttpResponse = client.get("$baseUrl/api/v1/students/$studentId/achievements") {
+            authHeader()
+        }
+        if (!response.status.isSuccess()) {
+            throw RuntimeException("Failed to get achievements: ${response.status}")
+        }
+        return json.decodeFromString<List<AchievementResponse>>(response.bodyAsText())
+    }
+
+    suspend fun getLearningPath(studentId: String): LearningPathResponse {
+        val response: HttpResponse = client.get("$baseUrl/api/v1/students/$studentId/learning-path") {
+            authHeader()
+        }
+        if (!response.status.isSuccess()) {
+            throw RuntimeException("Failed to get learning path: ${response.status}")
+        }
+        return json.decodeFromString<LearningPathResponse>(response.bodyAsText())
     }
 }

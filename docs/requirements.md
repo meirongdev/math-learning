@@ -123,7 +123,7 @@
 - 后端：Java 25 + Spring Boot 4.0.3 + Spring AI 2.0.0-M2。
 - 前端：KMP + Compose Wasm。
 - 数据层：PostgreSQL 17（pgvector）+ Redis 7。
-- 本地推理：Ollama（`qwen3.5:2b` + `nomic-embed-text`）。
+- 本地推理：Ollama（`qwen3.5` + `nomic-embed-text`）。
 - 生产主目标推理服务：DeepSeek（OpenAI 兼容方式）。
 
 ---

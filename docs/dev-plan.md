@@ -35,8 +35,8 @@
 **交付物：** 具备 PSLE 知识库支撑的增强型解题器。
 
 - 40 道 PSLE 题目（`sg-math-questions.json`）启动时自动 embed 并导入 `vector_store`
-- `RagRetrievalService`：cosine 相似度检索，grade 过滤，Top-5 注入 Planner prompt
-- `SolveService`：`@Cacheable("solveResults")`，question + grade 为 key，TTL 24h
+- `RagRetrievalService`：cosine 相似度检索，grade 过滤，Top-3 注入 Planner prompt
+- `SolveService`：`@Cacheable("solveResults")`，question + grade + mode 为 key，TTL 24h
 - `OllamaConfig`：`RestClientCustomizer` interceptor，修复 Spring AI 2.0.0-M2 `think` 字段泄漏 bug（见 [reference/troubleshooting.md](reference/troubleshooting.md)，上游 [spring-ai#5435](https://github.com/spring-projects/spring-ai/pull/5435)）
 
 > **关键发现：** Spring Boot 4.0 不自动注册 `ObjectMapper` Bean（`QuestionImportService` 和 `SolveController` 目前各自 `new ObjectMapper()`，待 Phase 4 统一）；thinking 模式开启时 ~52s/请求，关闭后 ~16s。
@@ -48,7 +48,7 @@
 **交付物：** 可在线交互的解题工具 Web 端（前端 localhost:8081 + 后端 localhost:8080）。
 
 - Compose for Web (Wasm) SPA：解题输入 + 年级选择 + 结果四区展示（家长导引、儿童脚本、Bar Model、知识点标签）
-- SSE 流式对接，Ktor HTTP client 解析结构化 `{type, content}` 事件
+- 当前前端主路径使用 JSON 解题接口；SSE 端点保留用于后续真流式演进
 - Loading / 错误 / 空状态处理；移动端响应式适配
 - CORS 跨域配置（`SecurityConfig`）
 
@@ -141,15 +141,15 @@
 > **目标**：修复 Phase 5 遗留 UX 问题，建立完整的知识图谱体系与测评闭环。
 >
 > **参考文档：**
-> - [session-persistence.md](session-persistence.md) — Token 持久化方案
-> - [student-management-redesign.md](student-management-redesign.md) — 学生管理重设计
+> - [current-implementation.md](current-implementation.md) — 当前登录态、学生管理与知识页实现映射
+> - [architecture.md](architecture.md) — 当前数据流与分层结构
 > - [knowledge-graph-requirements.md](knowledge-graph-requirements.md) — 知识图谱与评估需求
 >
 > **实施说明：**
 > - Flyway V2 迁移：`knowledge_nodes`（63 节点 P1–P6）、`assessment_questions`（68 题）+ `assessment_question_tags`、`solve_records.rating`、`knowledge_progress.mastery_level`
 > - Flyway V3 迁移：种子数据（知识图谱节点 + 测评题库）
 > - 后端：`KnowledgeController` 重写（graph/progress/mastery APIs）、`RecordController` 增加 rating、`StudentController` 增加 DELETE、新增 `AssessmentController`
-> - 前端：`TokenStore` expect/actual（localStorage）、401 拦截器、三 Tab 导航（Solve/Knowledge/History）、`StudentManagementDialog`、知识图谱树形页、历史记录页、星级评分组件
+> - 前端：`TokenStore` expect/actual（localStorage）、401 拦截器、基础导航（Solve/Knowledge/History）、`StudentManagementDialog`、知识图谱树形页、历史记录页、星级评分组件
 > - `kotlinx-datetime:0.6.1` 用于 Token 过期校验
 
 ### Task 6.1: Session 持久化（Phase 5 遗留）
@@ -246,22 +246,22 @@
 
 ---
 
-## Phase 8: 核心能力扩展与启发式教学 (高优先级) 🚀
+## Phase 8: 核心能力扩展与启发式教学 ✅ <small>(已完成)</small>
 
 > **目标**：从“给答案”转向“教方法”，并提升题目输入效率。
 > **核心变更**：引入“解释模式”切换逻辑，保留原有的直接讲解模式，新增苏格拉底启发模式。
 
-### Task 8.1: 多模态输入 (OCR)
+### Task 8.1: 多模态输入 (OCR) ✅
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 8.1 | 集成 Vision 模型（如 Qwen2.5-VL 或 Llama3.2-Vision）处理图片题目 | 上传题目照片，后端准确提取文本与符号 |
-| 8.2 | 前端增加拍照/上传图片入口，支持图片预览与裁剪 | 移动端可直接调用摄像头识题 |
+| 8.1 | 浏览器端集成 `tesseract.js` OCR，支持 `eng+chi_sim` 文本提取 | 上传题目图片后能自动填充题目文本 |
+| 8.2 | 前端增加上传入口、取消重试链路、识别状态反馈与中文字体兜底 | 取消 OCR 后可立即重试，中文文本可稳定显示 |
 
-### Task 8.3: 苏格拉底式启发模式 (架构设计)
+### Task 8.3: 苏格拉底式启发模式
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 8.3 | **后端模式路由**：`MathSolverOrchestrator` 增加 `ExplanationMode` (ORIGINAL/SOCRATIC) 分发逻辑 | 传入不同 mode 时，后端使用对应的 Agent 系统提示词 |
-| 8.4 | **引导式 Prompt**：新增苏格拉底提示词，要求 AI 生成 2-4 个引导问题而非直接步骤 | 启发模式下 `childScript` 变为互动问题链 |
+| 8.3 | **后端模式路由**：`MathSolverOrchestrator` 增加 `ExplanationMode` (ORIGINAL/SOCRATIC) 分发逻辑 | 传入不同 mode 时，后端返回对应风格的讲解结果 |
+| 8.4 | **Planner 衍生启发链**：复用 Planner JSON，本地生成 2-4 个引导问题，避免第二次 LLM 调用 | 启发模式下 `childScript` 变为互动问题链，响应时间显著优于双调用方案 |
 | 8.5 | **前端交互变更**：在解题输入区下方增加模式切换器 (Filter Chips) | 家长可自由选择讲解风格，默认保持为 ORIGINAL |
 
 ### Task 8.6: 多解法路径对比
@@ -272,7 +272,7 @@
 
 ---
 
-## Phase 9: 交互增强与家长生产力工具
+## Phase 9: 交互增强与家长生产力工具 🚧 <small>(进行中)</small>
 
 > **目标**：提升学生参与度，降低家长的辅导负担。
 
@@ -285,8 +285,8 @@
 ### Task 9.2: 错题本与 PDF 导出
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 9.3 | 自动错题本：筛选 `rating <= 2` 的记录，支持按知识点和时间过滤 | `GET /api/v1/records/mistakes` 返回准确 |
-| 9.4 | 一键导出 PDF：美化家长指南与儿童脚本排版，支持离线打印 | 下载的 PDF 包含完整的 Bar Model 图示 |
+| 9.3 | 自动错题本：筛选 `rating <= 2` 的记录，支持按知识点和时间过滤 | ✅ 已交付 `GET /api/v1/records/mistakes`（tag/date 为 skeleton 过滤） |
+| 9.4 | 一键导出 PDF：美化家长指南与儿童脚本排版，支持离线打印 | ✅ 已交付 `GET /api/v1/records/{recordId}/export`（返回 printable HTML + markdown payload） |
 
 ### Task 9.3: 学习周报与建议
 | # | 任务 | 验证方式 |
@@ -295,20 +295,22 @@
 
 ---
 
-## Phase 10: 游戏化与自适应学习
+## Phase 10: 游戏化与自适应学习 ✅
 
 > **目标**：通过成就系统和自适应路径提升用户粘性。
+
+**Phase 10 交付物：** 动态勋章墙、知识页星图视图、自适应挑战推荐，以及从推荐题一键跳转到 Solve 页的闭环体验。
 
 ### Task 10.1: 游戏化系统
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 10.1 | 勋章与成就：为“连续 7 天练习”、“掌握分数”等行为发放数字勋章 | 个人主页可见勋章墙 |
-| 10.2 | 技能树视觉化：知识图谱增加“星空视图”，掌握点会发光或解锁后续路径 | 知识图谱页 UX 升级 |
+| 10.1 | 勋章与成就：根据练习 streak、分数掌握、评分反馈等行为动态计算数字勋章 | Growth 页可见 Badge Wall，已解锁/未解锁进度可见 |
+| 10.2 | 技能树视觉化：知识图谱增加“星空视图”，按年级展示点亮状态 | Knowledge 页可切换 Star Map / Tree View；Growth 页承载勋章与挑战 |
 
 ### Task 10.2: 自适应学习路径
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 10.3 | 知识点前置关系建模，基于薄弱点自动推荐下一道挑战题 | 推荐题目符合学生的 Zone of Proximal Development |
+| 10.3 | 知识点前置关系建模，基于薄弱点自动推荐下一道挑战题 | `GET /api/v1/students/{id}/learning-path` 返回 focus node、direct prerequisite 与推荐题 |
 
 ---
 
@@ -331,7 +333,7 @@
 | 优先级 | 任务 | 状态 |
 |:-------|:-----|:-----|
 | **P0 (Critical)** | **Phase 7: 本地性能优化** (语义缓存、重试机制) | ✅ 已完成 |
-| **P0 (Critical)** | **Phase 8.3-8.5: 启发式教学** (核心差异化) | ✅ 已完成 |
-| **P1 (High)** | **Phase 8.1-8.2: OCR 识题** (多模态升级) | 待启动 |
-| **P2 (Medium)** | **Phase 9: 错题本与 PDF 导出** | 待启动 |
-| **P3 (Low)** | **Phase 10-11: 游戏化与正式部署** | 待启动 |
+| **P0 (Critical)** | **Phase 8: OCR + 启发式教学** (核心差异化) | ✅ 已完成 |
+| **P1 (High)** | **Phase 10: 游戏化与自适应学习** | ✅ 已完成 |
+| **P2 (Medium)** | **Phase 9: 错题本与 PDF 导出** | 🚧 骨架已交付，待交互式 BarModel 与周报完善 |
+| **P3 (Low)** | **Phase 11: 正式部署与可观测性** | 待启动 |

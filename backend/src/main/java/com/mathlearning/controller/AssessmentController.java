@@ -1,6 +1,7 @@
 package com.mathlearning.controller;
 
 import com.mathlearning.repository.AssessmentQuestionRepository;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,7 +23,7 @@ public class AssessmentController {
 	public record QuestionResponse(UUID id, String questionText, int grade, String difficulty, String answerHint) {
 	}
 
-	@GetMapping
+	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<QuestionResponse> getQuestions(@RequestParam(required = false) String tag,
 			@RequestParam(required = false) Integer grade, @RequestParam(defaultValue = "10") int limit) {
 		return assessmentQuestionRepository.findRandomByTagAndGrade(tag, grade, Math.min(limit, 50)).stream()

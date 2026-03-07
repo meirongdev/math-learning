@@ -4,97 +4,171 @@
 
 | Layer | Technology | Version |
 |:------|:-----------|:--------|
-| Backend language | Java | 25 (LTS) |
-| Backend framework | Spring Boot | 4.0.3 (Spring Framework 7) |
+| Backend language | Java | 25 |
+| Backend framework | Spring Boot | 4.0.3 |
 | AI integration | Spring AI | 2.0.0-M2 |
 | Build | Gradle | 9.2 |
-| Frontend | Kotlin Multiplatform + Compose for Web (Wasm) | Kotlin 2.3+ |
-| Database | PostgreSQL + pgvector | 17, 768-dim HNSW index |
-| Cache | Redis | 7.x |
-| LLM (dev) | Ollama + qwen3.5:2b | local, zero API cost |
-| LLM (prod) | DeepSeek-R1 | via OpenAI-compatible API |
+| Frontend | Kotlin Multiplatform + Compose Wasm | Kotlin 2.2.20, Compose 1.10.2 |
+| Database | PostgreSQL + pgvector | PostgreSQL 17 |
+| Cache | Redis + Caffeine | Redis 7 |
+| OCR | `tesseract.js` in browser | v5 CDN build |
+| Dev LLM | Ollama | `qwen3.5` |
+| Prod LLM | OpenAI-compatible provider | currently documented for DeepSeek |
 
-Key Java 25 features in use: **Virtual Threads** (high-concurrency agent requests), **Structured Concurrency** (`StructuredTaskScope`, preview), **Scoped Values** (preview).
+The app is optimized for local-first development: PostgreSQL, Redis, Ollama, backend, and Wasm frontend all run on a single machine.
 
 ---
 
-## Agent Pipeline
-
-The solve pipeline makes two sequential LLM calls, with the second step dynamically adjusted based on the user's selected **Explanation Mode**:
+## Runtime Architecture
 
 ```mermaid
 graph TD
-    A[SolveRequest\nquestion + grade + mode] --> B[RagRetrievalService\nTop-5 similar PSLE questions\ngrade-filtered from vector_store]
-    B --> C[Planner Agent\nExtracts knowledge tags,\nbuilds step-by-step plan\nJSON output]
-    C --> D{Explanation Mode}
-    D -- ORIGINAL --> E[Content Agent\nGenerates standard guide,\nchild script, bar model]
-    D -- SOCRATIC --> F[Socratic Agent\nGenerates heuristic questions,\nparent guide, bar model]
-    E --> G[SolveResult]
-    F --> G[SolveResult]
-
-    classDef io fill:#fff,stroke:#1976d2,stroke-width:2px
-    classDef agent fill:#fff,stroke:#f57c00,stroke-width:2px
-    classDef rag fill:#fff,stroke:#388e3c,stroke-width:2px
-    class A,G io
-    class C,E,F agent
-    class B rag
+    A[Compose Wasm UI] --> B[MathApi]
+    B --> C[Spring Boot API]
+    C --> D[SolveService]
+    D --> E[MathSolverOrchestrator]
+    E --> F[RagRetrievalService]
+    F --> G[pgvector vector_store]
+    E --> H[Planner LLM call]
+    E --> I{Explanation Mode}
+    I -- ORIGINAL --> J[Content LLM call]
+    I -- SOCRATIC --> K[Planner-derived local Socratic questions]
+    D --> L[Redis + Caffeine cache]
+    C --> M[PostgreSQL app tables]
 ```
 
-### Explanation Modes (Phase 8)
+### Key idea
 
-| Mode | Description | Target Audience |
-|:-----|:------------|:----------------|
-| **ORIGINAL** | Direct, step-by-step solution with a fun child script. | Parents who want to quickly check answers or explain directly. |
-| **SOCRATIC** | Heuristic approach using leading questions to guide the child. | Parents who want to tutor their child without giving away answers. |
+The application has one canonical solve pipeline, and the surrounding features enhance it rather than fork it:
 
-### Planner Agent
-...
-
-- **Input**: raw question + grade + RAG context (top-5 similar questions)
-- **Output**: `{"knowledgeTags":[...],"steps":[...],"answer":"...","difficulty":"easy|medium|hard"}`
-- Extracts PSLE knowledge tags used to populate `knowledge_progress` table
-
-### Content Agent
-
-- **Input**: Planner output JSON + grade
-- **Output**: `{"barModel":{...},"parentGuide":"...","childScript":"..."}`
-- Generates three artefacts in one call to reduce latency (originally two separate agents)
-
-### RAG Retrieval
-
-- Embeds the question using `nomic-embed-text` (768-dim)
-- Searches `vector_store` table with cosine similarity, filtered by `metadata.grade <= request.grade`
-- Returns top-5 results as few-shot context in the Planner prompt
-
-### Redis Cache
-
-`SolveService` wraps the pipeline with `@Cacheable("solveResults")`. Cache key: `question + grade`. TTL: 24 hours. First call ~16s (local Ollama), subsequent calls < 100ms.
+- OCR converts an image into question text before the solve request is sent.
+- `ExplanationMode` controls whether the second stage is a direct explanation or a planner-derived Socratic walkthrough.
+- ratings, knowledge tracking, achievements, and recommendations are all downstream of solve records and knowledge progress.
 
 ---
 
-## Data Flow (Full Request)
+## Solve Pipeline
 
-```
+### 1. Deterministic fast path
+
+`MathSolverOrchestrator` first checks whether a question is simple arithmetic such as `3 + 4`, `12 ÷ 3`, or `What is 8 x 7?`.
+
+If it matches the arithmetic regex, the result is computed locally and returned immediately. This is the main first-response latency optimization for trivial questions.
+
+### 2. RAG retrieval
+
+If the question is not handled locally, `RagRetrievalService`:
+
+- embeds the question with `nomic-embed-text`
+- filters by `metadata.grade <= request.grade`
+- returns up to **3** similar questions
+- formats them as a compact bullet list for the planner prompt
+
+### 3. Planner call
+
+The planner LLM call returns JSON describing:
+
+- `knowledgeTags`
+- `steps`
+- `answer`
+- `difficulty`
+
+These tags feed the knowledge tracking and recommendation systems.
+
+### 4. Explanation mode routing
+
+| Mode | Implementation |
+|:-----|:---------------|
+| `ORIGINAL` | Planner JSON is sent to a content prompt that generates parent guide, child script, and bar model. |
+| `SOCRATIC` | No second LLM call is made. The app converts planner JSON into 2-4 guiding questions locally, which avoids another slow round trip. |
+
+### 5. Persistence and enrichment
+
+If `studentId` is present:
+
+- a solve record is stored in `solve_records`
+- knowledge tags increment `knowledge_progress.attempt_count`
+- later parent ratings can promote mastery levels
+
+---
+
+## Phase 10 Features
+
+Phase 10 is implemented without introducing new persistence tables.
+
+### Achievement wall
+
+`StudentPhase10Service` computes badge progress dynamically from:
+
+- solve record count
+- distinct practice days
+- current streak length
+- rated explanations
+- mastered knowledge nodes
+- fraction-related mastery
+
+This keeps the feature lightweight while still surfacing meaningful engagement signals.
+
+### Adaptive learning path
+
+The same service builds a recommendation by combining:
+
+- the student's knowledge progress
+- the knowledge graph hierarchy
+- question-bank tags
+
+The algorithm chooses the weakest non-mastered focus node, checks only the **direct prerequisite**, and then retrieves up to three tagged challenge questions.
+
+### Frontend page split (UI redesign)
+
+To avoid overloading one page, growth-heavy widgets were split out:
+
+- `Knowledge` page: star map + mastery tree editing
+- `Growth` page: badge wall, snapshot counters, adaptive challenge card
+- `Mistakes` page: low-rated ledger + export preview (Phase 9 skeleton)
+
+This keeps navigation goal-oriented and reduces cognitive load per screen.
+
+### Phase 9 skeleton
+
+`RecordController` now exposes:
+
+- `GET /api/v1/records/mistakes` for rating-based mistake retrieval
+- `GET /api/v1/records/{recordId}/export` for printable/PDF-ready payloads
+
+---
+
+## Caching Strategy
+
+`SolveService` uses a multi-layer cache:
+
+- L1 exact cache via Redis `@Cacheable`
+- L2 semantic cache via pgvector similarity + Caffeine
+- L3 full solve pipeline
+
+The exact-match cache key is:
+
+`question.trim().lowercase() + ":" + grade + ":" + mode`
+
+This avoids cross-contaminating direct explanations and Socratic explanations.
+
+---
+
+## Data Flow
+
+```text
 Browser (Compose Wasm)
-  │  POST /api/v1/solve/stream (SSE)
-  │  Authorization: Bearer <jwt>
-  ▼
-JwtAuthenticationFilter
-  │  Validates JWT, sets SecurityContext (userId)
-  ▼
-SolveController
-  │  SolveService.solve() — @Cacheable
-  ▼
-MathSolverOrchestrator
-  ├── RagRetrievalService → pgvector (vector_store)
-  ├── Planner Agent → OllamaChatModel (ChatClient)
-  └── Content Agent → OllamaChatModel (ChatClient)
-  │
-  ▼
-SolveResult
-  ├── → SSE events (parent_guide, child_script, bar_model, knowledge_tags)
-  ├── → solve_records (if studentId provided)
-  └── → knowledge_progress (upsert attempt_count for each knowledgeTag)
+  -> optional OCR in browser
+  -> POST /api/v1/solve
+  -> Spring Security JWT filter
+  -> SolveController
+  -> SolveService
+  -> MathSolverOrchestrator
+     -> fast path OR RAG + planner (+ content/or local Socratic)
+  -> SolveResult
+  -> optional solve_records persistence
+  -> optional knowledge_progress tracking
+  -> later rating / achievements / recommendation refresh
 ```
 
 ---
@@ -184,11 +258,7 @@ CREATE TABLE vector_store (
 CREATE INDEX ON vector_store USING hnsw (embedding vector_cosine_ops);
 ```
 
-Schema is managed by Flyway (`backend/src/main/resources/db/migration/`, V1–V3). The `vector_store` table is auto-created by Spring AI (`initialize-schema: true`). Seed data includes 63 knowledge nodes and 68 assessment questions.
-
-### Redis
-
-`solveResults` cache: key = `MD5(question + grade)`, value = serialised `SolveResult` JSON, TTL = 24h.
+Schema is managed by Flyway (`backend/src/main/resources/db/migration/`, V1–V3). Seed data currently includes 63 knowledge nodes and 68 tagged assessment questions.
 
 ---
 
@@ -206,7 +276,13 @@ See [reference/troubleshooting.md](reference/troubleshooting.md) for full analys
 
 qwen3.5 with Ollama 0.12+ defaults to thinking mode: ~52s per call. Disabling it brings latency to ~16s. PSLE primary school math does not require deep chain-of-thought reasoning.
 
-### Why CPA Designer and Persona are one agent call
+### Why Socratic mode is planner-derived
 
-Originally two parallel agents; merged into a single Content Agent call after profiling showed the parallel overhead wasn't worthwhile at this scale and the combined prompt fits within context limits.
+The earliest implementation used a second LLM hop for Socratic explanations. That made the slowest path even slower.
+
+The current design reuses planner output and generates the Socratic questioning sequence locally. This keeps the interaction style while cutting a full LLM round trip.
+
+### Why achievements are computed dynamically
+
+Phase 10 badges are derived from existing records and progress rows instead of a new `achievements` table. That keeps the model simpler and avoids migration overhead while the badge taxonomy is still evolving.
 
