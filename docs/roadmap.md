@@ -16,7 +16,9 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 | [Phase 8](#phase-8--socratic-mode) | Socratic explanation mode + core capability expansion | Done |
 | [Phase 9](#phase-9--interactive-enhancements) | Interactive enhancements & parent productivity tools | In Progress |
 | [Phase 10](#phase-10--gamification) | Gamification & adaptive learning | Done |
-| [Phase 11](#phase-11--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
+| [Phase 10.5](#phase-105--cross-phase-hardening) | Cross-phase hardening (indexes, security, caching) | Done |
+| [Phase 11](#phase-11--android-mobile) | Android implementation (KMP + Jetpack Compose) | Done |
+| [Phase 12](#phase-12--production-deployment) | Production deployment (homelab k8s) | After local app is complete |
 
 ---
 
@@ -50,6 +52,14 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 
 ---
 
+**Phase 10.5** — Cross-phase hardening: Flyway V4 migration adds 6 performance indexes (`solve_records` composite, partial, GIN; `knowledge_nodes`, `assessment_question_tags`, `student_profiles` FK indexes). `findMistakes()` tag/date filtering moved from Java in-memory to SQL WHERE. `trackKnowledge()` refactored from N single queries to batch fetch + `saveAll()`. Knowledge graph tree cached via `@Cacheable("knowledgeGraph")` in `KnowledgeService`. Auth rate limiter (Caffeine-backed, 10 req/min/IP on `/api/v1/auth/`). Registration input validation (`@Email`, `@Size(min=8)`). CORS headers restricted to `Authorization, Content-Type, Accept`. Graceful shutdown enabled. `QuestionImportService` startup made fault-tolerant.
+
+---
+
+**Phase 11** — Android app (KMP + Jetpack Compose): `shared` module extended with `androidTarget` + Ktor OkHttp + SharedPreferences TokenStore. `MathApi.baseUrl` refactored to `() -> String` lambda for runtime configurability. Single Activity + Jetpack Navigation with 5-tab BottomNavigationBar (Solve/Knowledge/Growth/Mistakes/History). Koin 4.0 DI. CameraX 1.4 + ML Kit OCR (Chinese + Latin). Room 2.7.1 offline read cache (3 tables). DataStore Preferences for configurable backend URL. Material3 theme. NetworkMonitor with OfflineBanner. AGP 8.9.1, KSP 2.2.20-2.0.3, Compose BOM 2025.01.01.
+
+---
+
 ## Upcoming
 
 ### Phase 9 — Interactive Enhancements & Parent Productivity
@@ -59,16 +69,7 @@ Full task details are in [dev-plan.md](dev-plan.md). This page gives the high-le
 - PDF export payload (`GET /api/v1/records/{recordId}/export`) — skeleton delivered
 - Weekly learning report with AI summary
 
-### Phase 10 — Gamification & Adaptive Learning
-
-Delivered:
-
-- Achievement badges computed from solve history and mastery
-- Skill tree star-map visualization and split-page Growth hub
-- Direct-prerequisite-aware adaptive learning path
-- Automatic challenge recommendation based on weakest non-mastered nodes
-
-### Phase 11 — Production Deployment
+### Phase 12 — Production Deployment
 
 Intentionally deferred until the local application is functionally complete and quality is high.
 
@@ -77,3 +78,4 @@ Intentionally deferred until the local application is functionally complete and 
 - ArgoCD application syncing from the Helm chart
 - Micrometer + Prometheus metrics, Grafana dashboard
 - Production profile validation with DeepSeek-R1
+

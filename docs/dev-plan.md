@@ -314,17 +314,99 @@
 
 ---
 
-## Phase 11: 生产部署与可观测性
+## Phase 10.5: 跨阶段优化加固 ✅ <small>(已完成)</small>
 
-> **目标**：应用上线与持续监控。
->
-> *(原 Phase 9 计划移至此处)*
+> **目标**：回顾 Phase 1–10 实现，补齐性能、安全、稳定性方面的技术缺失。
 
-### Task 11.1: CI/CD 与部署
+### Task 10.5.1: 数据库索引补全
+
 | # | 任务 | 验证方式 |
 |:--|:-----|:---------|
-| 11.1 | 完善 GitHub Actions，自动构建并部署至 homelab k8s | `math.homelab.local` 生产环境可用 |
-| 11.2 | 配置 Prometheus + Grafana 监控 LLM 耗时与 API 成功率 | 监控面板有实时数据 |
+| 10.5.1 | Flyway V4 迁移：新增 `solve_records(student_id, created_at DESC)` 复合索引 | 历史查询走索引，EXPLAIN 无 Seq Scan |
+| 10.5.2 | `solve_records(student_id, rating)` 部分索引（仅非 NULL rating） | 错题筛选走索引 |
+| 10.5.3 | `solve_records` GIN 索引用于 `knowledge_tags` 数组查询 | `ANY(knowledge_tags)` 走 GIN |
+| 10.5.4 | `knowledge_nodes(parent_code)`、`assessment_question_tags(node_code)`、`student_profiles(parent_id)` 索引 | FK 查询与级联删除加速 |
+
+### Task 10.5.2: 查询优化
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 10.5.5 | `findMistakes()` tag/from/to 过滤从 Java 内存移入 SQL WHERE 子句 | 分页总数准确，无内存过滤 |
+| 10.5.6 | `trackKnowledge()` N 次单条查询改为批量 fetch + `saveAll()` | 同一事务内 1 次 SELECT + 1 次 batch INSERT/UPDATE |
+
+### Task 10.5.3: 缓存与响应优化
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 10.5.7 | 知识图谱树构建移入 `KnowledgeService` 并加 `@Cacheable("knowledgeGraph")` | 二次请求秒级返回，Redis 可见 key |
+| 10.5.8 | `CacheConfig` 增加通用缓存默认配置（24h TTL） | 新缓存无需单独配置序列化 |
+| 10.5.9 | 添加 `server.shutdown: graceful` + 30s 超时 | 部署时在途请求不中断 |
+
+### Task 10.5.4: 安全加固
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 10.5.10 | Auth 端点 (`/api/v1/auth/`) 限流：Caffeine 计数器，10 次/分钟/IP | 超限返回 429 + JSON 错误体 |
+| 10.5.11 | 注册密码校验：`@Size(min=8, max=72)` + `@NotBlank` + `@Email` | 弱密码返回 400 |
+| 10.5.12 | CORS `allowedHeaders` 从 `*` 收紧为 `Authorization, Content-Type, Accept` | preflight 响应仅含必要头 |
+
+### Task 10.5.5: 启动容错
+
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 10.5.13 | `QuestionImportService` 启动时 try-catch，vector store 不可用仅 warn 不阻塞 | 关闭 Ollama 后 backend 仍可启动 |
+
+**Phase 10.5 交付物：** 6 个新数据库索引，SQL 层过滤替代内存过滤，知识图谱缓存，auth 限流与输入校验，CORS 收紧，graceful shutdown，启动容错。
+
+---
+
+## Phase 11: Android 移动端实现 ✅ <small>(已完成)</small>
+
+> **目标**：基于 Kotlin Multiplatform (KMP) 和 Jetpack Compose 将应用推向 Android 移动端。
+>
+> **实施说明：**
+> - Android only（minSdk 29），iOS 延后至后续 Phase
+> - `shared` 模块新增 `androidTarget`，`MathApi.baseUrl` 改为 `() -> String` lambda 支持运行时配置
+> - `TokenStore` androidMain actual 使用 SharedPreferences + `initTokenStore(Context)` 模式
+> - Single Activity + Jetpack Navigation + BottomNavigationBar（5 Tab：Solve/Knowledge/Growth/Mistakes/History）
+> - Koin 4.0 DI（ViewModels + MathApi + NetworkMonitor + Room DAOs）
+> - CameraX 1.4 + ML Kit Text Recognition（Chinese + Latin）OCR 集成
+> - Room 2.7.1 离线只读缓存（knowledge_nodes/records/achievements 三表）
+> - DataStore Preferences 存储可配置后端 URL
+> - Material3 主题，UiState sealed interface（Loading/Success/Error）
+> - KSP 2.2.20-2.0.3 用于 Room 编译器（2.6.1 与 KSP 2.2.x 不兼容，升级至 2.7.1）
+
+### Task 11.1: KMP 移动端骨架搭建
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 11.1 | 配置 Android 工程入口，AGP 8.9.1 + KSP 2.2.20-2.0.3 | `./gradlew :androidApp:assembleDebug` 编译通过 |
+| 11.2 | 适配 `shared` 模块：androidTarget + Ktor OkHttp + TokenStore SharedPreferences | 移动端可正常登录并调用后端解题接口 |
+
+### Task 11.2: 移动端 UI/UX 适配
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 11.3 | 5 Tab 完整对齐 Web：Solve/Knowledge/Growth/Mistakes/History + Settings | 所有页面功能与 Web 端一致 |
+| 11.4 | Room 2.7.1 离线只读缓存（knowledge_nodes/records/achievements） | 断网状态下仍可查看缓存数据 |
+
+### Task 11.3: 原生能力集成
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 11.5 | CameraX + ML Kit OCR：拍照识题（中英文） | 拍照后文字自动填充到输入框 |
+| 11.6 | NetworkMonitor + OfflineBanner：实时网络状态检测 | 断网时顶部显示离线提示 |
+
+**Phase 11 交付物：** 可安装的 Android APK，核心功能与 Web 端完全对齐，含 OCR 与离线缓存。
+
+---
+
+## Phase 12: 生产部署与可观测性
+
+> **目标**：应用上线与持续监控。
+
+### Task 12.1: CI/CD 与部署
+| # | 任务 | 验证方式 |
+|:--|:-----|:---------|
+| 12.1 | 完善 GitHub Actions，自动构建并部署至 homelab k8s | `math.homelab.local` 生产环境可用 |
+| 12.2 | 配置 Prometheus + Grafana 监控 LLM 耗时与 API 成功率 | 监控面板有实时数据 |
 
 ---
 
@@ -334,6 +416,9 @@
 |:-------|:-----|:-----|
 | **P0 (Critical)** | **Phase 7: 本地性能优化** (语义缓存、重试机制) | ✅ 已完成 |
 | **P0 (Critical)** | **Phase 8: OCR + 启发式教学** (核心差异化) | ✅ 已完成 |
+| **P0 (Critical)** | **Phase 10.5: 跨阶段优化加固** (索引、安全、缓存) | ✅ 已完成 |
 | **P1 (High)** | **Phase 10: 游戏化与自适应学习** | ✅ 已完成 |
+| **P1 (High)** | **Phase 11: Android 移动端实现** | ✅ 已完成 |
 | **P2 (Medium)** | **Phase 9: 错题本与 PDF 导出** | 🚧 骨架已交付，待交互式 BarModel 与周报完善 |
-| **P3 (Low)** | **Phase 11: 正式部署与可观测性** | 待启动 |
+| **P3 (Low)** | **Phase 12: 正式部署与可观测性** | 待启动 |
+
