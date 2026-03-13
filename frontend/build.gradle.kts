@@ -4,6 +4,9 @@ plugins {
     id("org.jetbrains.compose") version "1.10.2" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.20" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.1" apply false
+    id("com.android.application") version "8.9.1" apply false
+    id("com.android.library") version "8.9.1" apply false
+    id("com.google.devtools.ksp") version "2.2.20-2.0.3" apply false
     id("com.diffplug.spotless") version "7.0.2"
 }
 
