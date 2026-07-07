@@ -21,7 +21,7 @@ class MathApiTest {
                 connectTimeoutMillis = 5_000
             }
         }
-        return MathApi(baseUrl = "http://mock", httpClient = client)
+        return MathApi(baseUrl = { "http://mock" }, httpClient = client)
     }
 
     // ── solve ─────────────────────────────────────────────────────────────────
@@ -618,7 +618,7 @@ class MathApiTest {
                 }
             }
         }
-        val api = MathApi(baseUrl = "http://mock", httpClient = client)
+        val api = MathApi(baseUrl = { "http://mock" }, httpClient = client)
         apiRef = api
         api.token = "expired-token"
 

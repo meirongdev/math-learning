@@ -79,17 +79,12 @@ public class RecordController {
 	@GetMapping(value = "/mistakes", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<MistakePageResponse> getMistakes(@AuthenticationPrincipal UUID userId,
 			@RequestParam(required = false) UUID studentId, @RequestParam(required = false) String tag,
-			@RequestParam(required = false) OffsetDateTime from,
-			@RequestParam(required = false) OffsetDateTime to,
+			@RequestParam(required = false) OffsetDateTime from, @RequestParam(required = false) OffsetDateTime to,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		Page<SolveRecord> result = solveRecordRepository.findMistakes(userId, studentId, PageRequest.of(page, size));
-		List<MistakeRecordResponse> records = result.getContent().stream()
-				.filter(r -> tag == null || (r.getKnowledgeTags() != null && r.getKnowledgeTags().contains(tag)))
-				.filter(r -> from == null || !r.getCreatedAt().isBefore(from))
-				.filter(r -> to == null || !r.getCreatedAt().isAfter(to))
-				.map(r -> new MistakeRecordResponse(r.getId(), r.getQuestionText(), r.getKnowledgeTags(), r.getRating(),
-						r.getCreatedAt().toString()))
-				.toList();
+		Page<SolveRecord> result = solveRecordRepository.findMistakes(userId, studentId, tag, from, to,
+				PageRequest.of(page, size));
+		List<MistakeRecordResponse> records = result.getContent().stream().map(r -> new MistakeRecordResponse(r.getId(),
+				r.getQuestionText(), r.getKnowledgeTags(), r.getRating(), r.getCreatedAt().toString())).toList();
 		return ResponseEntity.ok(new MistakePageResponse(records, result.getNumber(), result.getSize(),
 				result.getTotalElements(), result.getTotalPages()));
 	}
@@ -97,15 +92,15 @@ public class RecordController {
 	@GetMapping(value = "/{recordId}/export", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<RecordExportResponse> exportRecord(@AuthenticationPrincipal UUID userId,
 			@PathVariable UUID recordId) {
-		SolveRecord solveRecord = solveRecordRepository.findByIdWithStudentAndParentId(recordId, userId)
-				.orElse(null);
+		SolveRecord solveRecord = solveRecordRepository.findByIdWithStudentAndParentId(recordId, userId).orElse(null);
 		if (solveRecord == null) {
 			return ResponseEntity.notFound().build();
 		}
 
 		String safeQuestion = solveRecord.getQuestionText() != null ? solveRecord.getQuestionText() : "";
 		String title = "SG Math Tutor - Practice Export";
-		String tags = solveRecord.getKnowledgeTags() == null || solveRecord.getKnowledgeTags().isEmpty() ? "N/A"
+		String tags = solveRecord.getKnowledgeTags() == null || solveRecord.getKnowledgeTags().isEmpty()
+				? "N/A"
 				: String.join(", ", solveRecord.getKnowledgeTags());
 		String parentGuide = solveRecord.getParentGuide() != null ? solveRecord.getParentGuide() : "N/A";
 		String childScript = solveRecord.getChildScript() != null ? solveRecord.getChildScript() : "N/A";
@@ -154,10 +149,9 @@ public class RecordController {
 				solveRecord.getCreatedAt(), tags, escapeHtml(safeQuestion), escapeHtml(parentGuide),
 				escapeHtml(childScript), escapeHtml(barModel));
 
-		String fileName = "math-learning-%s-%s"
-				.formatted(solveRecord.getStudent().getName().replaceAll("\\s+", "-"), solveRecord.getId());
-		return ResponseEntity
-				.ok(new RecordExportResponse(solveRecord.getId(), fileName + ".pdf", "application/pdf",
+		String fileName = "math-learning-%s-%s".formatted(solveRecord.getStudent().getName().replaceAll("\\s+", "-"),
+				solveRecord.getId());
+		return ResponseEntity.ok(new RecordExportResponse(solveRecord.getId(), fileName + ".pdf", "application/pdf",
 				html, markdown, OffsetDateTime.now().toString()));
 	}
 

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +39,9 @@ public interface SolveRecordRepository extends JpaRepository<SolveRecord, UUID> 
 			  AND sr.rating IS NOT NULL
 			  AND sr.rating <= 2
 			  AND (:studentId IS NULL OR sr.student_id = :studentId)
+			  AND (:tag IS NULL OR :tag = ANY(sr.knowledge_tags))
+			  AND (CAST(:fromDate AS TIMESTAMPTZ) IS NULL OR sr.created_at >= :fromDate)
+			  AND (CAST(:toDate AS TIMESTAMPTZ) IS NULL OR sr.created_at <= :toDate)
 			ORDER BY sr.created_at DESC
 			""", countQuery = """
 			SELECT COUNT(*)
@@ -47,6 +51,10 @@ public interface SolveRecordRepository extends JpaRepository<SolveRecord, UUID> 
 			  AND sr.rating IS NOT NULL
 			  AND sr.rating <= 2
 			  AND (:studentId IS NULL OR sr.student_id = :studentId)
+			  AND (:tag IS NULL OR :tag = ANY(sr.knowledge_tags))
+			  AND (CAST(:fromDate AS TIMESTAMPTZ) IS NULL OR sr.created_at >= :fromDate)
+			  AND (CAST(:toDate AS TIMESTAMPTZ) IS NULL OR sr.created_at <= :toDate)
 			""", nativeQuery = true)
-	Page<SolveRecord> findMistakes(UUID parentId, UUID studentId, Pageable pageable);
+	Page<SolveRecord> findMistakes(UUID parentId, UUID studentId, String tag, OffsetDateTime fromDate,
+			OffsetDateTime toDate, Pageable pageable);
 }

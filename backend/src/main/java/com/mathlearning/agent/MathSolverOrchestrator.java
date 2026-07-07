@@ -46,8 +46,8 @@ import java.util.function.Supplier;
 public class MathSolverOrchestrator {
 
 	private static final Logger log = LoggerFactory.getLogger(MathSolverOrchestrator.class);
-	private static final Pattern SIMPLE_ARITHMETIC_PATTERN = Pattern.compile(
-			"(?i)^\\s*(?:what\\s+is\\s+)?(\\d{1,4})\\s*([+\\-x×*/÷])\\s*(\\d{1,4})\\s*(?:=|[?？])?\\s*$");
+	private static final Pattern SIMPLE_ARITHMETIC_PATTERN = Pattern
+			.compile("(?i)^\\s*(?:what\\s+is\\s+)?(\\d{1,4})\\s*([+\\-x×*/÷])\\s*(\\d{1,4})\\s*(?:=|[?？])?\\s*$");
 
 	private final int llmTimeoutSeconds;
 	private final ChatClient chatClient;
@@ -156,12 +156,13 @@ public class MathSolverOrchestrator {
 		char operator = matcher.group(2).charAt(0);
 
 		return switch (operator) {
-			case '+' -> buildArithmeticResult(request.effectiveMode(), left, right, operator, left + right,
-					"addition", List.of("whole_numbers", "basic_arithmetic"), simpleAdditionBarModel(left, right));
-			case '-' -> buildArithmeticResult(request.effectiveMode(), left, right, operator, left - right,
-					"subtraction", List.of("whole_numbers", "basic_arithmetic"), simpleSubtractionBarModel(left, right));
-			case 'x', 'X', '×', '*' -> buildArithmeticResult(request.effectiveMode(), left, right, operator, left * right,
-					"multiplication", List.of("whole_numbers", "basic_arithmetic"), "{}");
+			case '+' -> buildArithmeticResult(request.effectiveMode(), left, right, operator, left + right, "addition",
+					List.of("whole_numbers", "basic_arithmetic"), simpleAdditionBarModel(left, right));
+			case '-' ->
+				buildArithmeticResult(request.effectiveMode(), left, right, operator, left - right, "subtraction",
+						List.of("whole_numbers", "basic_arithmetic"), simpleSubtractionBarModel(left, right));
+			case 'x', 'X', '×', '*' -> buildArithmeticResult(request.effectiveMode(), left, right, operator,
+					left * right, "multiplication", List.of("whole_numbers", "basic_arithmetic"), "{}");
 			case '/', '÷' -> {
 				if (right == 0 || left % right != 0) {
 					yield null;
@@ -182,8 +183,8 @@ public class MathSolverOrchestrator {
 		String childScript = mode == ExplanationMode.SOCRATIC
 				? "1. What numbers do you see in %d %s %d? 🤔%n2. Should we combine them, compare them, share them, or make equal groups?%n3. Can you say the number sentence aloud?%n4. What answer do you get now? 🎉"
 						.formatted(left, normalizeOperator(operator), right)
-				: "Let's solve it together! %d %s %d gives us %d. So the answer is %d. Great job!"
-						.formatted(left, normalizeOperator(operator), right, answer, answer);
+				: "Let's solve it together! %d %s %d gives us %d. So the answer is %d. Great job!".formatted(left,
+						normalizeOperator(operator), right, answer, answer);
 
 		return new SolveResult(parentGuide, childScript, barModelJson, knowledgeTags);
 	}
@@ -199,13 +200,15 @@ public class MathSolverOrchestrator {
 	private String simpleAdditionBarModel(int left, int right) {
 		return """
 				{"title":"Addition","bars":[{"label":"Total","segments":[{"value":%d,"color":"#42A5F5","label":"First part"},{"value":%d,"color":"#66BB6A","label":"Second part"}]}],"annotations":["Put the two parts together."]}
-				""".formatted(left, right);
+				"""
+				.formatted(left, right);
 	}
 
 	private String simpleSubtractionBarModel(int left, int right) {
 		return """
 				{"title":"Subtraction","bars":[{"label":"Whole","segments":[{"value":%d,"color":"#42A5F5","label":"Whole"}]},{"label":"Take away","segments":[{"value":%d,"color":"#EF5350","label":"Removed"},{"value":%d,"color":"#66BB6A","label":"Left"}]}],"annotations":["Start from the whole, then remove part of it."]}
-				""".formatted(left, right, left - right);
+				"""
+				.formatted(left, right, left - right);
 	}
 
 	/**
@@ -252,7 +255,7 @@ public class MathSolverOrchestrator {
 
 	private String doCallLlm(String systemPrompt, String userMessage) {
 		return chatClient.prompt().system(systemPrompt).user(userMessage)
-				.options(OllamaChatOptions.builder().disableThinking().build()).call().content();
+				.options(OllamaChatOptions.builder().disableThinking()).call().content();
 	}
 
 	private SolveResult buildSocraticFallbackResult(String plannerResult) {
@@ -265,8 +268,9 @@ public class MathSolverOrchestrator {
 				knowledgeTags = List.of();
 			}
 
-			List<JsonNode> stepPrompts = objectMapper.convertValue(plannerJson.path("steps"), new TypeReference<List<JsonNode>>() {
-			});
+			List<JsonNode> stepPrompts = objectMapper.convertValue(plannerJson.path("steps"),
+					new TypeReference<List<JsonNode>>() {
+					});
 			String answer = plannerJson.path("answer").asText("");
 			String firstTag = knowledgeTags.isEmpty() ? "the main concept" : knowledgeTags.getFirst().replace('_', ' ');
 
@@ -305,8 +309,8 @@ public class MathSolverOrchestrator {
 			}
 		}
 		if (!answer.isBlank()) {
-			prompts.add((prompts.size() + 1) + ". Once you finish, what answer do you get? Check whether it matches %s. 🎉"
-					.formatted(answer));
+			prompts.add((prompts.size() + 1)
+					+ ". Once you finish, what answer do you get? Check whether it matches %s. 🎉".formatted(answer));
 		} else {
 			prompts.add((prompts.size() + 1) + ". Once you finish, what answer do you get? 🎉");
 		}

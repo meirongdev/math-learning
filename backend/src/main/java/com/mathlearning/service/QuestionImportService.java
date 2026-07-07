@@ -37,14 +37,18 @@ public class QuestionImportService {
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void importQuestionsOnStartup() {
-		Long count = jdbcTemplate.queryForObject("SELECT count(*) FROM vector_store", Long.class);
-		if (count != null && count > 0) {
-			log.info("Vector store already contains {} documents, skipping import", count);
-			return;
-		}
+		try {
+			Long count = jdbcTemplate.queryForObject("SELECT count(*) FROM vector_store", Long.class);
+			if (count != null && count > 0) {
+				log.info("Vector store already contains {} documents, skipping import", count);
+				return;
+			}
 
-		log.info("Vector store is empty, importing question bank...");
-		importQuestions();
+			log.info("Vector store is empty, importing question bank...");
+			importQuestions();
+		} catch (Exception e) {
+			log.warn("Could not check/import vector store on startup (will retry on next restart): {}", e.getMessage());
+		}
 	}
 
 	public void importQuestions() {

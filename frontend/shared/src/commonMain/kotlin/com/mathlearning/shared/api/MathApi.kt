@@ -31,7 +31,7 @@ import kotlinx.serialization.json.Json
 class UnauthorizedException : RuntimeException("Session expired. Please log in again.")
 
 class MathApi(
-    private val baseUrl: String = "http://localhost:8080",
+    private val baseUrl: () -> String = { "http://localhost:8080" },
     httpClient: HttpClient? = null,
 ) {
     internal val client =
@@ -62,7 +62,7 @@ class MathApi(
     }
 
     suspend fun register(email: String, password: String): Boolean {
-        val response: HttpResponse = client.post("$baseUrl/api/v1/auth/register") {
+        val response: HttpResponse = client.post("${baseUrl()}/api/v1/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(json.encodeToString(RegisterRequest(email, password)))
         }
@@ -70,7 +70,7 @@ class MathApi(
     }
 
     suspend fun login(email: String, password: String): LoginResponse {
-        val response: HttpResponse = client.post("$baseUrl/api/v1/auth/login") {
+        val response: HttpResponse = client.post("${baseUrl()}/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(json.encodeToString(LoginRequest(email, password)))
         }
@@ -84,7 +84,7 @@ class MathApi(
     }
 
     suspend fun solve(request: SolveRequest): SolveResponse {
-        val response: HttpResponse = client.post("$baseUrl/api/v1/solve") {
+        val response: HttpResponse = client.post("${baseUrl()}/api/v1/solve") {
             contentType(ContentType.Application.Json)
             authHeader()
             setBody(json.encodeToString(request))
@@ -96,7 +96,7 @@ class MathApi(
     }
 
     suspend fun createStudent(name: String, grade: Int): Student {
-        val response: HttpResponse = client.post("$baseUrl/api/v1/students") {
+        val response: HttpResponse = client.post("${baseUrl()}/api/v1/students") {
             contentType(ContentType.Application.Json)
             authHeader()
             setBody(json.encodeToString(CreateStudentRequest(name, grade)))
@@ -108,7 +108,7 @@ class MathApi(
     }
 
     suspend fun listStudents(): List<Student> {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/students") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/students") {
             authHeader()
         }
         if (!response.status.isSuccess()) {
@@ -118,7 +118,7 @@ class MathApi(
     }
 
     suspend fun deleteStudent(id: String) {
-        val response: HttpResponse = client.delete("$baseUrl/api/v1/students/$id") {
+        val response: HttpResponse = client.delete("${baseUrl()}/api/v1/students/$id") {
             authHeader()
         }
         if (response.status != HttpStatusCode.NoContent && !response.status.isSuccess()) {
@@ -128,7 +128,7 @@ class MathApi(
 
     // Knowledge graph
     suspend fun getKnowledgeGraph(): List<KnowledgeNodeResponse> {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/knowledge/graph")
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/knowledge/graph")
         if (!response.status.isSuccess()) {
             throw RuntimeException("Failed to get knowledge graph: ${response.status}")
         }
@@ -136,7 +136,7 @@ class MathApi(
     }
 
     suspend fun getKnowledgeProgress(studentId: String): List<KnowledgeProgressResponse> {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/knowledge/$studentId/progress") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/knowledge/$studentId/progress") {
             authHeader()
         }
         if (!response.status.isSuccess()) {
@@ -146,7 +146,7 @@ class MathApi(
     }
 
     suspend fun updateMastery(studentId: String, nodeCode: String, masteryLevel: String) {
-        val response: HttpResponse = client.put("$baseUrl/api/v1/knowledge/$studentId/progress/$nodeCode") {
+        val response: HttpResponse = client.put("${baseUrl()}/api/v1/knowledge/$studentId/progress/$nodeCode") {
             contentType(ContentType.Application.Json)
             authHeader()
             setBody(json.encodeToString(UpdateMasteryRequest(masteryLevel)))
@@ -158,7 +158,7 @@ class MathApi(
 
     // Records
     suspend fun getRecords(studentId: String, page: Int = 0, size: Int = 20): PagedRecordResponse {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/records/$studentId") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/records/$studentId") {
             authHeader()
             parameter("page", page)
             parameter("size", size)
@@ -170,7 +170,7 @@ class MathApi(
     }
 
     suspend fun rateRecord(recordId: String, rating: Int): RatingResponse {
-        val response: HttpResponse = client.patch("$baseUrl/api/v1/records/$recordId/rating") {
+        val response: HttpResponse = client.patch("${baseUrl()}/api/v1/records/$recordId/rating") {
             contentType(ContentType.Application.Json)
             authHeader()
             setBody(json.encodeToString(RatingRequest(rating)))
@@ -189,7 +189,7 @@ class MathApi(
         page: Int = 0,
         size: Int = 20,
     ): MistakePageResponse {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/records/mistakes") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/records/mistakes") {
             authHeader()
             studentId?.let { parameter("studentId", it) }
             tag?.let { parameter("tag", it) }
@@ -205,7 +205,7 @@ class MathApi(
     }
 
     suspend fun exportRecord(recordId: String): RecordExportResponse {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/records/$recordId/export") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/records/$recordId/export") {
             authHeader()
         }
         if (!response.status.isSuccess()) {
@@ -220,7 +220,7 @@ class MathApi(
         grade: Int? = null,
         limit: Int = 10,
     ): List<AssessmentQuestionResponse> {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/questions") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/questions") {
             authHeader()
             tag?.let { parameter("tag", it) }
             grade?.let { parameter("grade", it) }
@@ -233,7 +233,7 @@ class MathApi(
     }
 
     suspend fun getStudentAchievements(studentId: String): List<AchievementResponse> {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/students/$studentId/achievements") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/students/$studentId/achievements") {
             authHeader()
         }
         if (!response.status.isSuccess()) {
@@ -243,7 +243,7 @@ class MathApi(
     }
 
     suspend fun getLearningPath(studentId: String): LearningPathResponse {
-        val response: HttpResponse = client.get("$baseUrl/api/v1/students/$studentId/learning-path") {
+        val response: HttpResponse = client.get("${baseUrl()}/api/v1/students/$studentId/learning-path") {
             authHeader()
         }
         if (!response.status.isSuccess()) {

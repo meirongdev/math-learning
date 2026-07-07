@@ -61,31 +61,29 @@ public class StudentPhase10Service {
 		var progress = knowledgeProgressRepository.findByStudentIdOrderByAttemptCountDesc(studentId);
 
 		int totalSolves = records.size();
-		int currentStreakDays = calculateCurrentStreak(records.stream().map(r -> r.getCreatedAt().toLocalDate()).toList());
+		int currentStreakDays = calculateCurrentStreak(
+				records.stream().map(r -> r.getCreatedAt().toLocalDate()).toList());
 		int distinctPracticeDays = (int) records.stream().map(r -> r.getCreatedAt().toLocalDate()).distinct().count();
 		int masteredNodes = (int) progress.stream().filter(p -> MASTERED.equals(p.getMasteryLevel())).count();
 		int fractionMasteryCount = (int) progress.stream()
-				.filter(p -> MASTERED.equals(p.getMasteryLevel()) && p.getKnowledgeCode().contains("fraction"))
-				.count();
+				.filter(p -> MASTERED.equals(p.getMasteryLevel()) && p.getKnowledgeCode().contains("fraction")).count();
 		Set<String> exploredCodes = progress.stream().map(KnowledgeProgress::getKnowledgeCode)
 				.collect(Collectors.toCollection(LinkedHashSet::new));
 		int reflectionCount = (int) records.stream().filter(r -> r.getRating() != null).count();
 
 		List<AchievementBadge> badges = new ArrayList<>();
-		badges.add(badge("first-solve", "First Spark", "Solve the first question together.", "Spark",
-				totalSolves, 1));
-		badges.add(badge("streak-3", "3-Day Orbit", "Practice on 3 consecutive days.", "Orbit",
-				currentStreakDays, 3));
+		badges.add(badge("first-solve", "First Spark", "Solve the first question together.", "Spark", totalSolves, 1));
+		badges.add(badge("streak-3", "3-Day Orbit", "Practice on 3 consecutive days.", "Orbit", currentStreakDays, 3));
 		badges.add(badge("streak-7", "7-Day Comet", "Keep the learning streak alive for a full week.", "Comet",
 				currentStreakDays, 7));
-		badges.add(badge("knowledge-explorer", "Knowledge Explorer", "Touch at least 5 different skills.",
-				"Explorer", exploredCodes.size(), 5));
-		badges.add(badge("fraction-master", "Fraction Finisher", "Master at least 1 fractions skill.",
-				"Fraction", fractionMasteryCount, 1));
-		badges.add(badge("mastery-builder", "Mastery Builder", "Reach mastery in 3 knowledge nodes.",
-				"Builder", masteredNodes, 3));
-		badges.add(badge("reflective-coach", "Reflective Coach", "Rate 3 explanations to refine the tutor.",
-				"Coach", reflectionCount, 3));
+		badges.add(badge("knowledge-explorer", "Knowledge Explorer", "Touch at least 5 different skills.", "Explorer",
+				exploredCodes.size(), 5));
+		badges.add(badge("fraction-master", "Fraction Finisher", "Master at least 1 fractions skill.", "Fraction",
+				fractionMasteryCount, 1));
+		badges.add(badge("mastery-builder", "Mastery Builder", "Reach mastery in 3 knowledge nodes.", "Builder",
+				masteredNodes, 3));
+		badges.add(badge("reflective-coach", "Reflective Coach", "Rate 3 explanations to refine the tutor.", "Coach",
+				reflectionCount, 3));
 		badges.add(badge("steady-parent", "Steady Parent", "Practice on 5 different days.", "Steady",
 				distinctPracticeDays, 5));
 		return badges;
@@ -94,8 +92,9 @@ public class StudentPhase10Service {
 	public LearningPath getLearningPath(UUID studentId, int studentGrade) {
 		List<KnowledgeNode> nodes = knowledgeNodeRepository.findAllByOrderBySortOrderAsc();
 		Map<String, KnowledgeNode> nodeMap = nodes.stream().collect(Collectors.toMap(KnowledgeNode::getCode, n -> n));
-		Map<String, KnowledgeProgress> progressMap = knowledgeProgressRepository.findByStudentIdOrderByAttemptCountDesc(studentId)
-				.stream().collect(Collectors.toMap(KnowledgeProgress::getKnowledgeCode, p -> p, (a, _) -> a));
+		Map<String, KnowledgeProgress> progressMap = knowledgeProgressRepository
+				.findByStudentIdOrderByAttemptCountDesc(studentId).stream()
+				.collect(Collectors.toMap(KnowledgeProgress::getKnowledgeCode, p -> p, (a, _) -> a));
 
 		KnowledgeNode baseTarget = selectWeakestNode(nodes, progressMap, studentGrade);
 		KnowledgeNode prerequisite = findUnmetPrerequisite(baseTarget, nodeMap, progressMap);
@@ -107,14 +106,15 @@ public class StudentPhase10Service {
 
 		String reason = prerequisite != null
 				? "The learner is close to '%s', but the prerequisite '%s' is not mastered yet, so we should reinforce that foundation first."
-					.formatted(baseTarget.getNameEn(), prerequisite.getNameEn())
+						.formatted(baseTarget.getNameEn(), prerequisite.getNameEn())
 				: "The learner needs one more focused challenge in '%s'. This recommendation is based on the weakest non-mastered node with recent activity or unmet mastery."
-					.formatted(baseTarget.getNameEn());
+						.formatted(baseTarget.getNameEn());
 		String pluralSuffix = questions.size() == 1 ? "" : "s";
 		String summary = questions.isEmpty()
-				? "No tagged challenge question is available yet, but '%s' is still the best next focus area.".formatted(effectiveTarget.getNameEn())
+				? "No tagged challenge question is available yet, but '%s' is still the best next focus area."
+						.formatted(effectiveTarget.getNameEn())
 				: "Next best challenge: strengthen '%s' with %d curated question%s."
-					.formatted(effectiveTarget.getNameEn(), questions.size(), pluralSuffix);
+						.formatted(effectiveTarget.getNameEn(), questions.size(), pluralSuffix);
 
 		return new LearningPath(summary, reason, focusNode, prerequisiteNode, questions);
 	}
@@ -153,11 +153,13 @@ public class StudentPhase10Service {
 		List<KnowledgeNode> candidateNodes = nodes.stream().filter(gradeEligible)
 				.filter(node -> progressMap.containsKey(node.getCode()) || node.getParentCode() != null).toList();
 
-		return candidateNodes.stream().filter(node -> !isMastered(node.getCode(), progressMap)).sorted(Comparator
-				.comparingInt((KnowledgeNode node) -> masteryPriority(progressMap.get(node.getCode()))).thenComparing(
-						( KnowledgeNode node) -> attemptPriority(progressMap.get(node.getCode())), Comparator.reverseOrder())
-				.thenComparing(KnowledgeNode::getGradeStart).thenComparing(KnowledgeNode::getSortOrder)).findFirst()
-				.orElseGet(() -> nodes.stream().filter(gradeEligible).findFirst().orElse(nodes.getFirst()));
+		return candidateNodes.stream().filter(node -> !isMastered(node.getCode(), progressMap))
+				.sorted(Comparator
+						.comparingInt((KnowledgeNode node) -> masteryPriority(progressMap.get(node.getCode())))
+						.thenComparing((KnowledgeNode node) -> attemptPriority(progressMap.get(node.getCode())),
+								Comparator.reverseOrder())
+						.thenComparing(KnowledgeNode::getGradeStart).thenComparing(KnowledgeNode::getSortOrder))
+				.findFirst().orElseGet(() -> nodes.stream().filter(gradeEligible).findFirst().orElse(nodes.getFirst()));
 	}
 
 	private KnowledgeNode findUnmetPrerequisite(KnowledgeNode target, Map<String, KnowledgeNode> nodeMap,
@@ -213,6 +215,7 @@ public class StudentPhase10Service {
 	}
 
 	private boolean isMastered(String knowledgeCode, Map<String, KnowledgeProgress> progressMap) {
-		return MASTERED.equals(progressMap.getOrDefault(knowledgeCode, defaultProgress(knowledgeCode)).getMasteryLevel());
+		return MASTERED
+				.equals(progressMap.getOrDefault(knowledgeCode, defaultProgress(knowledgeCode)).getMasteryLevel());
 	}
 }

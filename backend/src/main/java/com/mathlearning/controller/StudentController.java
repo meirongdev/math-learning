@@ -53,8 +53,7 @@ public class StudentController {
 			int currentValue, int targetValue) {
 	}
 
-	public record LearningNodeResponse(String code, String nameEn, String nameZh, String masteryLevel,
-			int gradeStart) {
+	public record LearningNodeResponse(String code, String nameEn, String nameZh, String masteryLevel, int gradeStart) {
 	}
 
 	public record RecommendedQuestionResponse(UUID id, String questionText, int grade, String difficulty,
@@ -87,9 +86,11 @@ public class StudentController {
 	@GetMapping(value = "/{id}/achievements", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<List<AchievementResponse>> getAchievements(@AuthenticationPrincipal UUID userId,
 			@PathVariable UUID id) {
-		return studentProfileRepository.findByIdAndParentId(id, userId).map(student -> ResponseEntity.ok(
-				studentPhase10Service.getAchievements(id).stream().map(a -> new AchievementResponse(a.code(), a.title(),
-						a.description(), a.icon(), a.unlocked(), a.currentValue(), a.targetValue())).toList()))
+		return studentProfileRepository.findByIdAndParentId(id, userId)
+				.map(student -> ResponseEntity.ok(studentPhase10Service.getAchievements(id).stream()
+						.map(a -> new AchievementResponse(a.code(), a.title(), a.description(), a.icon(), a.unlocked(),
+								a.currentValue(), a.targetValue()))
+						.toList()))
 				.orElse(ResponseEntity.notFound().build());
 	}
 

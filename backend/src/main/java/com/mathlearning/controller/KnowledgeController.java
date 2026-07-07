@@ -1,8 +1,7 @@
 package com.mathlearning.controller;
 
-import com.mathlearning.model.entity.KnowledgeNode;
-import com.mathlearning.repository.KnowledgeNodeRepository;
 import com.mathlearning.service.KnowledgeService;
+import com.mathlearning.service.KnowledgeService.KnowledgeNodeResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -15,10 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -26,19 +22,13 @@ import java.util.UUID;
 public class KnowledgeController {
 
 	private final KnowledgeService knowledgeService;
-	private final KnowledgeNodeRepository knowledgeNodeRepository;
 
-	public KnowledgeController(KnowledgeService knowledgeService, KnowledgeNodeRepository knowledgeNodeRepository) {
+	public KnowledgeController(KnowledgeService knowledgeService) {
 		this.knowledgeService = knowledgeService;
-		this.knowledgeNodeRepository = knowledgeNodeRepository;
 	}
 
 	public record KnowledgeResponse(UUID id, String knowledgeCode, int attemptCount, int correctCount,
 			String masteryScore, String masteryLevel, String updatedAt) {
-	}
-
-	public record KnowledgeNodeResponse(String code, String nameEn, String nameZh, String parentCode, int gradeStart,
-			List<KnowledgeNodeResponse> children) {
 	}
 
 	public record UpdateMasteryRequest(
@@ -47,8 +37,7 @@ public class KnowledgeController {
 
 	@GetMapping(value = "/graph", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<KnowledgeNodeResponse> getKnowledgeGraph() {
-		List<KnowledgeNode> nodes = knowledgeNodeRepository.findAllByOrderBySortOrderAsc();
-		return buildTree(nodes);
+		return knowledgeService.getKnowledgeGraph();
 	}
 
 	@GetMapping(value = "/{studentId}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -72,25 +61,4 @@ public class KnowledgeController {
 		return ResponseEntity.noContent().build();
 	}
 
-	private List<KnowledgeNodeResponse> buildTree(List<KnowledgeNode> nodes) {
-		Map<String, List<KnowledgeNode>> childrenMap = new LinkedHashMap<>();
-		List<KnowledgeNode> roots = new ArrayList<>();
-
-		for (KnowledgeNode node : nodes) {
-			if (node.getParentCode() == null) {
-				roots.add(node);
-			} else {
-				childrenMap.computeIfAbsent(node.getParentCode(), k -> new ArrayList<>()).add(node);
-			}
-		}
-
-		return roots.stream().map(n -> toResponse(n, childrenMap)).toList();
-	}
-
-	private KnowledgeNodeResponse toResponse(KnowledgeNode node, Map<String, List<KnowledgeNode>> childrenMap) {
-		List<KnowledgeNodeResponse> children = childrenMap.getOrDefault(node.getCode(), List.of()).stream()
-				.map(n -> toResponse(n, childrenMap)).toList();
-		return new KnowledgeNodeResponse(node.getCode(), node.getNameEn(), node.getNameZh(), node.getParentCode(),
-				node.getGradeStart(), children);
-	}
 }

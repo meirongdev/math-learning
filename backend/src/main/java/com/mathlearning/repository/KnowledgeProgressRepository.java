@@ -13,5 +13,7 @@ public interface KnowledgeProgressRepository extends JpaRepository<KnowledgeProg
 
 	Optional<KnowledgeProgress> findByStudentIdAndKnowledgeCode(UUID studentId, String knowledgeCode);
 
+	List<KnowledgeProgress> findByStudentIdAndKnowledgeCodeIn(UUID studentId, List<String> knowledgeCodes);
+
 	List<KnowledgeProgress> findByStudentIdOrderByAttemptCountDesc(UUID studentId);
 }

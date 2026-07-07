@@ -110,9 +110,9 @@ class StudentControllerTest extends AbstractIntegrationTest {
 		knowledgeProgressRepository.save(KnowledgeProgress.builder().student(student).knowledgeCode("fractions.basic")
 				.masteryLevel("MASTERED").masteryScore(new BigDecimal("0.95")).attemptCount(4).correctCount(4).build());
 
-		mockMvc.perform(get("/api/v1/students/{id}/achievements", student.getId())
-				.header("Authorization", "Bearer " + token)).andExpect(status().isOk())
-				.andExpect(jsonPath("$[0].code").value("first-solve"))
+		mockMvc.perform(
+				get("/api/v1/students/{id}/achievements", student.getId()).header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk()).andExpect(jsonPath("$[0].code").value("first-solve"))
 				.andExpect(jsonPath("$[0].unlocked").value(true))
 				.andExpect(jsonPath("$[4].code").value("fraction-master"))
 				.andExpect(jsonPath("$[4].unlocked").value(true))
@@ -127,17 +127,16 @@ class StudentControllerTest extends AbstractIntegrationTest {
 		knowledgeProgressRepository.save(KnowledgeProgress.builder().student(student).knowledgeCode("frac.add_sub")
 				.masteryLevel("FAMILIAR").attemptCount(5).correctCount(2).build());
 
-		mockMvc.perform(get("/api/v1/students/{id}/learning-path", student.getId())
-				.header("Authorization", "Bearer " + token)).andExpect(status().isOk())
-				.andExpect(jsonPath("$.focusNode.code").value("frac.add_sub"))
-				.andExpect(jsonPath("$.reason").exists())
-				.andExpect(jsonPath("$.questions").isArray())
+		mockMvc.perform(
+				get("/api/v1/students/{id}/learning-path", student.getId()).header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.focusNode.code").value("frac.add_sub"))
+				.andExpect(jsonPath("$.reason").exists()).andExpect(jsonPath("$.questions").isArray())
 				.andExpect(jsonPath("$.questions.length()").value(1));
 	}
 
 	@Test
 	void getLearningPath_UnknownStudent_Returns404() throws Exception {
-		mockMvc.perform(get("/api/v1/students/{id}/learning-path", UUID.randomUUID())
-				.header("Authorization", "Bearer " + token)).andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/students/{id}/learning-path", UUID.randomUUID()).header("Authorization",
+				"Bearer " + token)).andExpect(status().isNotFound());
 	}
 }
