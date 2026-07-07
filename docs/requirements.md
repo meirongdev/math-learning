@@ -120,7 +120,7 @@
 
 ## 5. 技术约束
 
-- 后端：Java 25 + Spring Boot 4.0.3 + Spring AI 2.0.0-M2。
+- 后端：Java 25 + Spring Boot 4.1.0 + Spring AI 2.0.0。
 - 前端：KMP + Compose Wasm。
 - 数据层：PostgreSQL 17（pgvector）+ Redis 7。
 - 本地推理：Ollama（`qwen3.5` + `nomic-embed-text`）。

@@ -17,3 +17,4 @@ rootProject.name = "math-learning-frontend"
 
 include(":shared")
 include(":webApp")
+include(":androidApp")

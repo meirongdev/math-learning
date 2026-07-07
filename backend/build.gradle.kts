@@ -1,8 +1,8 @@
 plugins {
     java
     jacoco
-    id("org.springframework.boot") version "4.0.3"
-    id("com.diffplug.spotless") version "7.0.2"
+    id("org.springframework.boot") version "4.1.0"
+    id("com.diffplug.spotless") version "8.8.0"
 }
 
 spotless {
@@ -71,14 +71,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
     // Resilience4j
-    implementation("io.github.resilience4j:resilience4j-retry:2.2.0")
-    implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.2.0")
+    implementation("io.github.resilience4j:resilience4j-retry:2.3.0")
+    implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.3.0")
 
     // Caffeine for in-memory caching
     implementation("com.github.ben-manes.caffeine:caffeine")
 
     // Netty macOS DNS resolver (fixes warnings on macOS)
-    runtimeOnly("io.netty:netty-resolver-dns-native-macos:4.1.118.Final:osx-aarch_64")
+    runtimeOnly("io.netty:netty-resolver-dns-native-macos:4.2.1.Final:osx-aarch_64")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
@@ -86,15 +86,15 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
     // Lombok
-    compileOnly("org.projectlombok:lombok:1.18.42")
-    annotationProcessor("org.projectlombok:lombok:1.18.42")
+    compileOnly("org.projectlombok:lombok:1.18.46")
+    annotationProcessor("org.projectlombok:lombok:1.18.46")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
-    testImplementation("org.testcontainers:postgresql:1.20.4")
+    testImplementation("org.testcontainers:junit-jupiter:1.21.3")
+    testImplementation("org.testcontainers:postgresql:1.21.3")
 }
 
 tasks.withType<JavaCompile> {
@@ -116,7 +116,7 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 }
 
 jacoco {
-    toolVersion = "0.8.13"
+    toolVersion = "0.8.15"
 }
 
 tasks.jacocoTestReport {
