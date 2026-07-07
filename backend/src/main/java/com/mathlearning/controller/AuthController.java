@@ -4,6 +4,10 @@ import com.mathlearning.exception.ErrorResponse;
 import com.mathlearning.model.entity.User;
 import com.mathlearning.repository.UserRepository;
 import com.mathlearning.service.JwtService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,14 +33,15 @@ public class AuthController {
 		this.jwtService = jwtService;
 	}
 
-	public record RegisterRequest(String email, String password) {
+	public record RegisterRequest(@NotBlank @Email String email,
+			@NotBlank @Size(min = 8, max = 72, message = "Password must be 8-72 characters") String password) {
 	}
 
-	public record LoginRequest(String email, String password) {
+	public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {
 	}
 
 	@PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+	public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
 		if (userRepository.existsByEmail(request.email())) {
 			return ResponseEntity.status(HttpStatus.CONFLICT)
 					.body(new ErrorResponse("CONFLICT", "Email already registered"));
@@ -50,7 +55,7 @@ public class AuthController {
 	}
 
 	@PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+	public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
 		return userRepository.findByEmail(request.email())
 				.filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
 				.<ResponseEntity<?>>map(user -> {

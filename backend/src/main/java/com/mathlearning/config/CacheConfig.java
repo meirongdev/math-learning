@@ -32,7 +32,10 @@ public class CacheConfig {
 				.serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer))
 				.disableCachingNullValues();
 
-		return RedisCacheManager.builder(connectionFactory).withCacheConfiguration("solveResults", solveResultsConfig)
-				.build();
+		RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
+				.entryTtl(Duration.ofHours(24)).disableCachingNullValues();
+
+		return RedisCacheManager.builder(connectionFactory).cacheDefaults(defaultConfig)
+				.withCacheConfiguration("solveResults", solveResultsConfig).build();
 	}
 }

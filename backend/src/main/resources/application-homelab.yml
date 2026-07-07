@@ -1,0 +1,16 @@
+# Homelab profile: use DeepSeek via Bifrost gateway (homelab → DGX)
+# Activate with: --spring.profiles.active=homelab
+#
+# model_providers.bifrost (from ~/.codex/config.toml):
+#   base_url = https://llm.meirong.dev/v1
+#   api-key  = ${BIFROST_VK}  (exported from ~/.zshrc, prefix sk-bf-)
+#   model    = custom_dgx/deepseek-v4-flash
+
+spring:
+  ai:
+    openai:
+      base-url: https://llm.meirong.dev/v1
+      api-key: ${BIFROST_VK}
+      chat:
+        options:
+          model: custom_dgx/deepseek-v4-flash
