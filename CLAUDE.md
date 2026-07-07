@@ -6,9 +6,10 @@ Singapore Primary Math Tutoring App targeting the 2026 PSLE syllabus. The app pr
 
 ## Tech Stack
 
-- **Backend**: Java 25 + Spring Boot 4.0.3 (Spring Framework 7) + Spring AI 2.0.0-M2
-- **Build**: Gradle 9.2
-- **Frontend**: Kotlin Multiplatform (KMP) + Compose for Web (Wasm)
+- **Backend**: Java 25 + Spring Boot 4.1.0 (Spring Framework 7) + Spring AI 2.0.0
+- **Build**: Gradle 9.6.1
+- **Frontend**: Kotlin Multiplatform (KMP) 2.2.20 + Compose Multiplatform 1.11.1 (Wasm)
+- **Android**: AGP 9.2.1, Compose BOM 2026.06.01, Room 2.8.4, CameraX 1.6.1, Koin 4.1.0
 - **Database**: PostgreSQL 17 with pgvector (768-dim, HNSW index) for RAG embeddings
 - **Cache**: Redis 7
 - **LLM**: Ollama (local, qwen3.5) or cloud LLM providers (DeepSeek-R1) via Spring AI

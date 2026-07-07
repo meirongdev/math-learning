@@ -10,6 +10,7 @@ This folder is organized around the current running system, not historical imple
 - `reference/api.md` — authoritative HTTP API reference.
 - `roadmap.md` — shipped phases vs upcoming phases.
 - `dev-plan.md` — detailed delivery plan and execution status.
+- `byok-ai-provider-plan.md` — proposal: let users configure their own AI API (BYOK), minimal feature set.
 
 ## Supporting References
 
